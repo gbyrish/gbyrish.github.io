@@ -208,6 +208,7 @@ const State = {
   dynamicAdmins: [], // emails granted admin access via the Admin Access panel (stored in Firestore)
   products: {},
   orders: {},
+  trash: {},
   cart: JSON.parse(localStorage.getItem('gbyrish_cart') || '[]'),
   route: normalizeRoute(location.hash || '#home'),
   coupons: { WELCOME10: 10, GBYRISH20: 20 },
@@ -323,6 +324,12 @@ if(db){
     State.orders = obj;
     render();
   }, (err)=>{ firebaseError = err.message; render(); });
+  onSnapshot(collection(db, 'orders_trash'), (snap)=>{
+    const obj = {};
+    snap.forEach(d=>{ obj[d.id] = d.data(); });
+    State.trash = obj;
+    render();
+  }, (err)=>{ console.error('trash listener error:', err); });
   onSnapshot(doc(db, 'settings', 'site'), (snap)=>{
     if(snap.exists()) State.settings = { ...State.settings, ...snap.data() };
     render();
@@ -1749,7 +1756,7 @@ window.trackOrder = function(orderId){
   if(el) el.innerHTML = trackOrderResultHtml(orderId);
 };
 function trackOrderResultHtml(orderId){
-  const order = State.orders[orderId];
+  const order = Object.values(State.orders).find(o => o.orderId === orderId);
   if(!order){
     return `<div class="bg-red-50 border border-red-100 text-red-500 rounded-xl p-4 text-sm text-center">No order found with ID "${escapeHtml(orderId)}". Please check the ID and try again.</div>`;
   }
@@ -1814,7 +1821,7 @@ function pageProfile(){
 
 /* ---------------- Admin Pages ---------------- */
 function adminNav(active){
-  const items = [['#admin','Dashboard'],['#admin/sale','Sale Event'],['#admin/discounts','Spend Discount'],['#admin/product','Add Product'],['#admin/inventory','Inventory'],['#admin/orders','Orders'],['#admin/settings','Site Settings']];
+  const items = [['#admin','Dashboard'],['#admin/sale','Sale Event'],['#admin/discounts','Spend Discount'],['#admin/product','Add Product'],['#admin/inventory','Inventory'],['#admin/orders','Orders'],['#admin/trash','Recycle Bin'],['#admin/settings','Site Settings']];
   return `<div class="flex gap-2 overflow-x-auto hide-scrollbar mb-8">
     ${items.map(([h,l])=>`<a href="${h}" class="shrink-0 px-5 py-2.5 rounded-full text-sm font-medium ${active===h? 'bg-primary text-white':'bg-cream2 text-ink'}">${l}</a>`).join('')}
   </div>`;
@@ -2187,6 +2194,13 @@ window.deleteProduct = function(id){
   });
 };
 
+window.toggleOrderDetail = function(btn, detailId){
+  const el = document.getElementById(detailId);
+  if(!el) return;
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? 'block' : 'none';
+  btn.textContent = isHidden ? '−' : '+';
+};
 function pageAdminOrders(){
   if(!requireAdmin()) return '';
   const list = Object.entries(State.orders).sort((a,b)=>b[1].createdAt-a[1].createdAt);
@@ -2198,17 +2212,29 @@ function pageAdminOrders(){
       ${list.length===0? '<p class="text-gray-400">No orders yet.</p>' : list.map(([id,o])=>`
         <div class="bg-white border border-gray-100 rounded-2xl p-5">
           <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
-            <span class="font-medium">${id}</span>
-            <select onchange="window.updateOrderStatus('${id}', this.value)" class="text-xs border border-gray-200 rounded-full px-3 py-1.5">
-              ${['Pending','Processing','Shipped','Delivered','Cancelled'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
-            </select>
+            <div class="flex items-center gap-3">
+              <button onclick="window.toggleOrderDetail(this, 'od-${id.replace(/'/g,"\\'")}')" class="w-6 h-6 rounded-full border border-gray-300 text-xs flex items-center justify-center hover:bg-gray-100 cursor-pointer">+</button>
+              <span class="font-medium">${o.orderId || id}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <select onchange="window.updateOrderStatus('${id}', this.value)" class="text-xs border border-gray-200 rounded-full px-3 py-1.5">
+                ${['Pending','Processing','Shipped','Delivered','Cancelled'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
+              </select>
+              <button onclick="if(confirm('Delete order '+('${o.orderId || id.replace(/'/g,"\\'")}')+'? This cannot be undone.'))window.deleteOrder('${id}')" class="w-7 h-7 rounded-full border border-red-200 text-red-400 text-sm flex items-center justify-center hover:bg-red-50 hover:text-red-600" title="Delete order">&times;</button>
+            </div>
           </div>
           <p class="text-sm text-gray-600">${escapeHtml(o.customer.name)} &middot; ${escapeHtml(o.customer.email)} &middot; ${escapeHtml(o.customer.phone)}</p>
-          <p class="text-xs text-gray-400 mb-2">${escapeHtml(o.customer.address)}, ${escapeHtml(o.customer.city)}, ${escapeHtml(o.customer.province)}, ${escapeHtml(o.customer.country)}</p>
-          <p class="text-sm">${o.items.map(it=>escapeHtml(it.name)+' x'+it.qty+(optsSummary(it.opts)?' ('+optsSummary(it.opts)+')':'')).join(', ')}</p>
-          ${o.spendDiscount > 0 ? `<p class="text-xs text-green-600">${o.spendDiscountRule ? escapeHtml(o.spendDiscountRule.name)+': ' : 'Spend discount: '}-${money(o.spendDiscount)}</p>` : ''}
-          ${o.couponDiscount > 0 ? `<p class="text-xs text-green-600">Coupon (${o.coupon || 'N/A'}): -${money(o.couponDiscount)}</p>` : ''}
-          <p class="font-semibold text-primary mt-1">${money(o.totals.grand)}</p>
+          <p class="text-xs text-gray-400">${new Date(o.createdAt).toLocaleString()}</p>
+          <div id="od-${id.replace(/'/g,"\\'")}" class="mt-3 p-3 bg-gray-50 rounded-xl text-sm hidden">
+            <p class="text-xs text-gray-400 mb-2">${escapeHtml(o.customer.address)}, ${escapeHtml(o.customer.city)}, ${escapeHtml(o.customer.province)}, ${escapeHtml(o.customer.country)}</p>
+            <div class="space-y-1 mb-2">
+              ${o.items.map(it=>`<div class="flex justify-between"><span>${escapeHtml(it.name)} x${it.qty}${optsSummary(it.opts)?' ('+optsSummary(it.opts)+')':''}</span><span>${money(it.price*it.qty)}</span></div>`).join('')}
+            </div>
+            ${o.spendDiscount>0?`<p class="text-xs text-green-600">Spend discount: -${money(o.spendDiscount)}</p>`:''}
+            ${o.couponDiscount>0?`<p class="text-xs text-green-600">Coupon (${o.coupon||'N/A'}): -${money(o.couponDiscount)}</p>`:''}
+            <p class="font-semibold text-primary mt-1">Total: ${money(o.totals?.grand||0)}</p>
+            <p class="text-xs text-gray-400 mt-1">Payment: ${o.payment==='cod'?'Cash on Delivery':'Bank Transfer'}</p>
+          </div>
         </div>`).join('')}
     </div>
   </div>`;
@@ -2220,7 +2246,73 @@ window.updateOrderStatus = function(id, status){
     toast('Failed to update status: ' + err.message, 'err');
   });
 };
+window.deleteOrder = function(id){
+  if(!requireFirebase()) return;
+  if(!confirm('Move order to Recycle Bin? You can restore it later.')) return;
+  const order = State.orders[id];
+  if(!order) return;
+  setDoc(doc(db, 'orders_trash', id), { ...order, deletedAt: Date.now() }).then(()=>{
+    deleteDoc(doc(db, 'orders', id)).then(()=>toast('Moved to Recycle Bin')).catch(err=>{
+      console.error('Move to trash failed:', err);
+      toast('Failed: ' + err.message, 'err');
+    });
+  }).catch(err=>{
+    console.error('Trash save failed:', err);
+    toast('Failed: ' + err.message, 'err');
+  });
+};
+window.restoreOrder = function(id){
+  if(!requireFirebase()) return;
+  const trash = State.trash[id];
+  if(!trash) return;
+  const { deletedAt, ...order } = trash;
+  setDoc(doc(db, 'orders', id), order).then(()=>{
+    deleteDoc(doc(db, 'orders_trash', id)).then(()=>toast('Order restored!')).catch(()=>toast('Restored'));
+  }).catch(err=>{
+    console.error('Restore failed:', err);
+    toast('Failed: ' + err.message, 'err');
+  });
+};
+window.permanentDelete = function(id){
+  if(!requireFirebase()) return;
+  if(!confirm('Permanently delete? This CANNOT be undone.')) return;
+  deleteDoc(doc(db, 'orders_trash', id)).then(()=>toast('Permanently deleted')).catch(err=>{
+    console.error('Permanent delete failed:', err);
+    toast('Failed: ' + err.message, 'err');
+  });
+};
 
+function pageAdminTrash(){
+  if(!requireAdmin()) return '';
+  const list = Object.entries(State.trash).sort((a,b)=>b[1].deletedAt-a[1].deletedAt);
+  return `
+  <div class="max-w-6xl mx-auto px-4 py-8 md:py-12">
+    <h1 class="font-serif text-2xl md:text-3xl mb-6">Recycle Bin</h1>
+    ${adminNav('#admin/trash')}
+    <div class="space-y-4">
+      ${list.length===0? '<p class="text-gray-400">Recycle bin is empty.</p>' : list.map(([id,o])=>`
+        <div class="bg-white border border-gray-100 rounded-2xl p-5">
+          <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+            <span class="font-medium">${o.orderId || id}</span>
+            <div class="flex gap-2">
+              <button onclick="window.restoreOrder('${id}')" class="text-xs text-green-600 border border-green-200 rounded-full px-3 py-1.5 hover:bg-green-50">Restore</button>
+              <button onclick="window.permanentDelete('${id}')" class="text-xs text-red-500 border border-red-200 rounded-full px-3 py-1.5 hover:bg-red-50">Delete Forever</button>
+            </div>
+          </div>
+          <p class="text-sm text-gray-600">${escapeHtml(o.customer.name)} &middot; ${escapeHtml(o.customer.email)} &middot; ${escapeHtml(o.customer.phone)}</p>
+          <p class="text-xs text-gray-400">${new Date(o.deletedAt).toLocaleString()}</p>
+          <div class="mt-3 p-3 bg-gray-50 rounded-xl text-sm">
+            <p class="text-xs text-gray-400 mb-2">${escapeHtml(o.customer.address)}, ${escapeHtml(o.customer.city)}, ${escapeHtml(o.customer.province)}, ${escapeHtml(o.customer.country)}</p>
+            <div class="space-y-1">
+              ${o.items.map(it=>`<div class="flex justify-between"><span>${escapeHtml(it.name)} x${it.qty}</span><span>${money(it.price*it.qty)}</span></div>`).join('')}
+            </div>
+            <p class="font-semibold text-primary mt-1">Total: ${money(o.totals?.grand||0)}</p>
+            <p class="text-xs text-gray-400 mt-1">Payment: ${o.payment==='cod'?'Cash on Delivery':'Bank Transfer'}</p>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
 function pageAdminSettings(){
   if(!requireAdmin()) return '';
   const s = State.settings;
@@ -2793,6 +2885,7 @@ function doRender(){
     else if(route==='#admin/product') body = pageAdminProduct(null);
     else if(route==='#admin/inventory') body = pageAdminInventory();
     else if(route==='#admin/orders') body = pageAdminOrders();
+    else if(route==='#admin/trash') body = pageAdminTrash();
     else if(route==='#admin/settings') body = pageAdminSettings();
     else if(route==='#admin') body = pageAdminDash();
     else if(route.startsWith('#shop')) body = pageShop();
