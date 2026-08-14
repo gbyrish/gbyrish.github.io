@@ -123,6 +123,7 @@ tailwind.config = {
 <div id="toast-container" class="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[999] flex flex-col gap-2 items-center"></div>
 <div id="modal-root"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
 import {
@@ -161,6 +162,45 @@ try{
   firebaseError = err.message || String(err);
   console.error('Firebase init failed:', err);
 }
+
+// EmailJS: send real order confirmation emails
+// Get your public key from: EmailJS Dashboard → Account → API Keys
+const EMAILJS_PUBLIC_KEY = 'G6k-gP5pDm7YtMarS';
+const EMAILJS_SERVICE_ID = 'service_fan09f9';
+const EMAILJS_TEMPLATE_ID = 'template_02mg42d';
+const EMAILJS_TO_EMAIL = 'ahmadasifkhan2023@gmail.com'; // where order confirmations go
+
+if(typeof emailjs !== 'undefined' && EMAILJS_PUBLIC_KEY !== 'YOUR_EMAILJS_PUBLIC_KEY'){
+  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+}
+
+window.sendOrderEmail = async function(order, orderId){
+  // Send to store owner
+  if(typeof emailjs === 'undefined' || EMAILJS_PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY') return false;
+  try{
+    const itemLines = order.items.map(it => it.name + ' x' + it.qty + ' = Rs. ' + (it.price * it.qty)).join('\n');
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_email: EMAILJS_TO_EMAIL,
+      customer_name: order.customer.name,
+      customer_email: order.customer.email,
+      customer_phone: order.customer.phone,
+      order_id: orderId,
+      order_status: order.status || 'Pending',
+      grand_total: money(order.totals.grand),
+      shipping_address: order.customer.address + ', ' + order.customer.city + ', ' + order.customer.province + ', ' + order.customer.country,
+      payment_method: order.payment === 'cod' ? 'Cash on Delivery' : 'Bank Transfer',
+      items_list: itemLines,
+      item_count: order.items.length + ' item(s)',
+      spend_discount: order.spendDiscount > 0 ? money(order.spendDiscount) : 'None',
+      coupon_discount: order.couponDiscount > 0 ? money(order.couponDiscount) : 'None',
+      instagram_link: 'https://www.instagram.com/gbyrish/'
+    });
+    return true;
+  }catch(e){
+    console.error('EmailJS send failed:', e);
+    return false;
+  }
+};
 
 // Super Admins: always trusted, hardcoded, can't be removed from the UI.
 const ADMIN_EMAILS = ["ahmadasifkhan2023@gmail.com","gybrish@gmail.com","gbyrish@gmail.com"];
@@ -1678,7 +1718,7 @@ window.placeOrder = async function(form){
     toast('Order placed but inventory update had an issue. Our team will review it.', 'warn');
   }
 
-  // Step 3: Queue confirmation email (does not affect order success)
+  // Step 3: Queue confirmation email (requires backend Cloud Function to actually send)
   try{
     await addDoc(collection(db, 'mail'), {
       to: order.customer.email,
@@ -1691,7 +1731,44 @@ window.placeOrder = async function(form){
     });
   }catch(e){
     console.error('Email queue failed (order was created):', e);
-    // Do NOT show an error to the customer — the order exists.
+  }
+
+  // Send real confirmation email via EmailJS
+  const emailSent = await window.sendOrderEmail(order, orderId);
+
+  // Fallback: open customer's email client if EmailJS fails or isn't configured
+  if(!emailSent){
+    const itemLines = order.items.map(it => '- ' + it.name + ' x' + it.qty + ' = ' + money(it.price * it.qty)).join('\n');
+    const discountLines = [];
+    if(order.spendDiscount > 0) discountLines.push('Spend Discount: -' + money(order.spendDiscount));
+    if(order.couponDiscount > 0) discountLines.push('Coupon (' + (order.coupon || 'N/A') + '): -' + money(order.couponDiscount));
+    const emailBody = [
+      'Dear ' + order.customer.name + ',',
+      '',
+      'Thank you for your order with Gbyrish!',
+      '',
+      'Order ID: ' + orderId,
+      'Status: ' + order.status,
+      '',
+      'Items:',
+      itemLines,
+      '',
+      discountLines.length ? discountLines.join('\n') + '\n' : '',
+      'Grand Total: ' + money(order.totals.grand),
+      '',
+      'Shipping to:',
+      order.customer.address + ', ' + order.customer.city + ', ' + order.customer.province + ', ' + order.customer.country,
+      '',
+      'Payment: ' + (order.payment === 'cod' ? 'Cash on Delivery' : 'Bank Transfer'),
+      '',
+      'To track your order, visit our website and enter your Order ID.',
+      'For any questions, message us on Instagram: https://www.instagram.com/gbyrish/',
+      '',
+      'Thank you for shopping with Gbyrish!'
+    ].join('\n');
+    try {
+      window.open('mailto:' + order.customer.email + '?subject=Order Confirmation - Gbyrish ' + orderId + '&body=' + encodeURIComponent(emailBody));
+    } catch(e){}
   }
 
   // Step 4: Clear cart and navigate to confirmation (always runs)
