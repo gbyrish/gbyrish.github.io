@@ -329,7 +329,7 @@ if(db){
     snap.forEach(d=>{ obj[d.id] = d.data(); });
     State.trash = obj;
     render();
-  }, (err)=>{ console.error('trash listener error:', err); });
+  }, (err)=>{ if(err.code !== 'permission-denied') console.warn('Trash listener:', err); });
   onSnapshot(doc(db, 'settings', 'site'), (snap)=>{
     if(snap.exists()) State.settings = { ...State.settings, ...snap.data() };
     render();
