@@ -1557,7 +1557,7 @@ function pageCheckout(){
         <div class="bg-cream2 rounded-2xl p-5 md:p-6 md:sticky md:top-24">
           <h3 class="font-medium mb-4">Order Summary</h3>
           <div class="space-y-3 max-h-64 overflow-y-auto mb-4">
-            ${State.cart.map(c=>{ const p=State.products[c.id]; if(!p) return ''; return `
+            ${State.cart.map(c=>{ const p=State.products[c.id]; if(!p){ return `<div class="flex gap-3 items-center text-sm text-gray-400"><div class="w-12 h-12 rounded-lg bg-cream2 animate-pulse"></div><div class="flex-1"><p>Loading...</p></div></div>`; } return `
               <div class="flex gap-3 items-center text-sm">
                 <img src="${p.image||''}" class="w-12 h-12 rounded-lg object-cover bg-white">
                 <div class="flex-1"><p>${escapeHtml(p.name)}</p><p class="text-gray-500 text-xs">Qty ${c.qty}${optsSummary(c.opts)? ' &middot; '+optsSummary(c.opts):''}</p></div>
