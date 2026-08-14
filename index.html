@@ -1330,10 +1330,7 @@ function pageProduct(id){
         ${isDeal(p) && dealSavings(p)>0 ? `<p class="text-sm text-green-600 font-medium mb-4">You save ${money(dealSavings(p))}</p>` : '<div class="mb-5"></div>'}
         <p class="text-gray-600 leading-relaxed mb-6">${escapeHtml(p.description||'')}</p>
         ${isDeal(p) ? dealIncludedItemsHtml(p, true) : ''}
-        ${isCustomizableCategory(p.category) ? customizationFormHtml(p.category) : (p.customizable ? `<div class="mb-5">
-          <label class="text-sm font-medium block mb-2">Customization Note (optional)</label>
-          <textarea id="custom-note" placeholder="e.g. Name to engrave, color preference, message card text..." class="w-full border border-gray-200 rounded-xl p-3 text-sm" rows="3"></textarea>
-        </div>` : '')}
+        ${isCustomizableCategory(p.category) ? customizationFormHtml(p.category) : ''}
         <p class="text-sm mb-5 ${Number(p.stock)<=0 ? 'text-red-500' : (Number(p.stock)<10 ? 'text-amber-600 font-medium' : 'text-green-600')}">${Number(p.stock)<=0 ? 'Out of Stock' : (Number(p.stock)<10 ? 'Only ' + p.stock + ' left in stock - order soon' : 'In Stock (' + p.stock + ' available)')}</p>
         <div class="hidden md:flex gap-4">
           <div class="flex items-center border rounded-xl">
