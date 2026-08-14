@@ -175,11 +175,11 @@ if(typeof emailjs !== 'undefined' && EMAILJS_PUBLIC_KEY !== 'YOUR_EMAILJS_PUBLIC
 }
 
 window.sendOrderEmail = async function(order, orderId){
-  // Send to store owner
-  if(typeof emailjs === 'undefined' || EMAILJS_PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY') return false;
+  if(typeof emailjs === 'undefined'){ console.warn('EmailJS SDK not loaded'); return false; }
   try{
+    console.log('Sending email via EmailJS...', { service: EMAILJS_SERVICE_ID, template: EMAILJS_TEMPLATE_ID, to: EMAILJS_TO_EMAIL });
     const itemLines = order.items.map(it => it.name + ' x' + it.qty + ' = Rs. ' + (it.price * it.qty)).join('\n');
-    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    const result = await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
       to_email: EMAILJS_TO_EMAIL,
       customer_name: order.customer.name,
       customer_email: order.customer.email,
@@ -195,9 +195,12 @@ window.sendOrderEmail = async function(order, orderId){
       coupon_discount: order.couponDiscount > 0 ? money(order.couponDiscount) : 'None',
       instagram_link: 'https://www.instagram.com/gbyrish/'
     });
+    console.log('EmailJS sent successfully:', result);
+    toast('Order confirmation email sent!');
     return true;
   }catch(e){
     console.error('EmailJS send failed:', e);
+    toast('Email failed: ' + (e.message || 'Unknown error'), 'err');
     return false;
   }
 };
