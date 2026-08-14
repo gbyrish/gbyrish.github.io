@@ -2421,10 +2421,7 @@ function pageAdminDiscounts(){
         <div id="discount-products-field" class="hidden">
           <label class="text-sm font-medium block mb-1">Select Products</label>
           <div id="discount-product-list" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-3">
-            ${Object.entries(State.products).map(([id,p])=>`
-              <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-cream2 rounded-lg px-3 py-1.5">
-                <input type="checkbox" name="productIds" value="${id}" class="discount-product-cb"> ${escapeHtml(p.name)}
-              </label>`).join('') || '<p class="text-xs text-gray-400">No products available</p>'}
+            <p class="text-xs text-gray-400">Loading products...</p>
           </div>
           <p class="text-xs text-gray-400 mt-1">Only selected products count toward the threshold.</p>
         </div>
@@ -2459,10 +2456,7 @@ function pageAdminDiscounts(){
         <div id="discount-target-products-field" class="hidden">
           <label class="text-sm font-medium block mb-1">Select Products</label>
           <div id="discount-target-product-list" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-3">
-            ${Object.entries(State.products).map(([id,p])=>`
-              <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-cream2 rounded-lg px-3 py-1.5">
-                <input type="checkbox" name="discountProductIds" value="${id}" class="discount-target-product-cb"> ${escapeHtml(p.name)}
-              </label>`).join('') || '<p class="text-xs text-gray-400">No products available</p>'}
+            <p class="text-xs text-gray-400">Loading products...</p>
           </div>
           <p class="text-xs text-gray-400 mt-1">The discount is subtracted from these products' subtotal.</p>
         </div>
@@ -2606,6 +2600,7 @@ window.saveDiscountRule = async function(form){
 window.editDiscountRule = function(id){
   const rule = (State.settings?.spendDiscountRules || []).find(r => r.id === id);
   if(!rule){ toast('Rule not found','err'); return; }
+  if(typeof window.populateDiscountProductLists === 'function') window.populateDiscountProductLists();
   const form = document.getElementById('discount-rule-form');
   form.ruleId.value = rule.id;
   form.name.value = rule.name || '';
@@ -2614,16 +2609,20 @@ window.editDiscountRule = function(id){
   form.scope.value = rule.scope || 'store';
   if(rule.scope === 'category') form.category.value = rule.category || '';
   if(rule.scope === 'product' && rule.productIds){
-    form.querySelectorAll('.discount-product-cb').forEach(cb => {
-      cb.checked = rule.productIds.includes(cb.value);
-    });
+    setTimeout(() => {
+      form.querySelectorAll('.discount-product-cb').forEach(cb => {
+        cb.checked = rule.productIds.includes(cb.value);
+      });
+    }, 60);
   }
   form.discountTarget.value = rule.discountTarget || 'store';
   if(rule.discountTarget === 'category') form.discountCategory.value = rule.discountCategory || '';
   if(rule.discountTarget === 'product' && rule.discountProductIds){
-    form.querySelectorAll('.discount-target-product-cb').forEach(cb => {
-      cb.checked = rule.discountProductIds.includes(cb.value);
-    });
+    setTimeout(() => {
+      form.querySelectorAll('.discount-target-product-cb').forEach(cb => {
+        cb.checked = rule.discountProductIds.includes(cb.value);
+      });
+    }, 60);
   }
   form.startDate.value = rule.startDate || '';
   form.startTime.value = rule.startTime || '00:00';
@@ -2674,6 +2673,22 @@ window.toggleDiscountTargetFields = function(){
   const target = document.querySelector('input[name="discountTarget"]:checked')?.value || 'store';
   document.getElementById('discount-target-category-field').classList.toggle('hidden', target !== 'category');
   document.getElementById('discount-target-products-field').classList.toggle('hidden', target !== 'product');
+};
+window.populateDiscountProductLists = function(){
+  const products = Object.values(State.products || {});
+  if(!products.length) return;
+  const qList = document.getElementById('discount-product-list');
+  const tList = document.getElementById('discount-target-product-list');
+  const html = products.map(p => `
+    <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-cream2 rounded-lg px-3 py-1.5">
+      <input type="checkbox" name="productIds" value="${p.id}" class="discount-product-cb"> ${escapeHtml(p.name)}
+    </label>`).join('');
+  const targetHtml = products.map(p => `
+    <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-cream2 rounded-lg px-3 py-1.5">
+      <input type="checkbox" name="discountProductIds" value="${p.id}" class="discount-target-product-cb"> ${escapeHtml(p.name)}
+    </label>`).join('');
+  if(qList) qList.innerHTML = html || '<p class="text-xs text-gray-400">No products available</p>';
+  if(tList) tList.innerHTML = targetHtml || '<p class="text-xs text-gray-400">No products available</p>';
 };
 
 /* ---------------- Footer ---------------- */
@@ -2761,6 +2776,9 @@ function doRender(){
       ${SearchOverlay()}
     `;
     positionHeaderForSaleBar();
+    if(route === '#admin/discounts'){
+      setTimeout(() => { if(typeof window.populateDiscountProductLists === 'function') window.populateDiscountProductLists(); }, 50);
+    }
   }catch(err){
     console.error('Render error:', err);
     root.innerHTML = `
