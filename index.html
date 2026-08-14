@@ -68,8 +68,47 @@ tailwind.config = {
   .navlink:hover::after{width:100%;}
   .bnav-item.active { color:#8B6F4E; }
   .bnav-item.active svg { stroke:#8B6F4E; }
-  @media (max-width:767px){ body{padding-bottom:64px;} }
-  /* Mobile menu slide/fade animation */
+  /* ===== Responsive breakpoints ===== */
+  @media (max-width:767px){
+    body{padding-bottom:64px;}
+    .product-grid{grid-template-columns:repeat(2,1fr) !important;gap:10px !important;}
+    .product-grid .product-card{pborder-radius:12px;}
+    .checkout-grid{grid-template-columns:1fr !important;gap:16px !important;}
+    .admin-grid{grid-template-columns:1fr !important;}
+    .admin-form{max-width:100% !important;margin:0 !important;}
+    .cart-drawer{width:100% !important;max-width:100% !important;}
+    .settings-layout{flex-direction:column !important;}
+    .settings-layout .settings-preview{display:none !important;}
+    .hero-title{font-size:1.75rem !important;}
+    .section-title{font-size:1.25rem !important;}
+    .banner-text{font-size:0.8rem !important;}
+    .checkout-item{flex-direction:column !important;align-items:flex-start !important;}
+    .checkout-item img{width:100% !important;height:auto !important;max-height:200px !important;object-fit:cover !important;}
+    .modal-content{width:95vw !important;max-height:90vh !important;margin:2vh auto !important;}
+    .category-tiles{grid-template-columns:repeat(3,1fr) !important;gap:8px !important;}
+    .profile-orders{overflow-x:auto;}
+    .order-row{min-width:600px;}
+    .featured-grid{grid-template-columns:repeat(2,1fr) !important;}
+    .discount-form-grid{grid-template-columns:1fr !important;}
+  }
+  @media (min-width:768px) and (max-width:1023px){
+    .product-grid{grid-template-columns:repeat(3,1fr) !important;}
+    .featured-grid{grid-template-columns:repeat(3,1fr) !important;}
+    .category-tiles{grid-template-columns:repeat(4,1fr) !important;}
+  }
+  @media (min-width:1024px){
+    .product-grid{grid-template-columns:repeat(4,1fr) !important;}
+    .featured-grid{grid-template-columns:repeat(4,1fr) !important;}
+  }
+  @media (max-width:480px){
+    .product-grid{grid-template-columns:repeat(2,1fr) !important;gap:8px !important;}
+    .category-tiles{grid-template-columns:repeat(2,1fr) !important;}
+    .hero-title{font-size:1.5rem !important;}
+    .banner-text{font-size:0.75rem !important;}
+    .checkout-summary{padding:12px !important;}
+    .admin-form{padding:12px !important;}
+  }
+  /* Mobile menu */
   .mobile-menu { opacity:0; pointer-events:none; visibility:hidden; transition:opacity .28s ease, visibility .28s ease; }
   .mobile-menu.open { opacity:1; pointer-events:auto; visibility:visible; }
   .mobile-menu .mmenu-panel { transform:translateX(-100%); transition:transform .3s cubic-bezier(.4,0,.2,1); }
@@ -1659,7 +1698,7 @@ window.placeOrder = async function(form){
 
 /* ---------------- Page: Order Confirmation ---------------- */
 function pageOrderConfirmation(orderId){
-  const order = State.orders[orderId];
+  const order = Object.values(State.orders).find(o => o.orderId === orderId);
   if(!order) return `<div class="text-center py-24"><p>Loading order...</p></div>`;
   return `
   <div class="max-w-2xl mx-auto px-4 py-16 md:py-24 text-center">
