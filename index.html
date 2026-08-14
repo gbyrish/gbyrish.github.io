@@ -491,12 +491,13 @@ function cartTotals(){
   if(State.appliedCoupon && State.coupons[State.appliedCoupon]){
     couponDiscount = Math.round(itemTotal * (State.coupons[State.appliedCoupon]/100));
   }
-  const spendDiscount = calcSpendDiscount(State.cart);
+  const spendResult = calcSpendDiscount(State.cart);
+  const spendDiscount = spendResult.amount;
   const totalDiscount = couponDiscount + spendDiscount;
   const subtotalAfterDiscounts = Math.max(0, itemTotal - totalDiscount);
   const tax = Math.round(subtotalAfterDiscounts * 0.0); // tax set to 0%
   const grand = Math.max(0, subtotalAfterDiscounts + shipping + tax);
-  return { itemTotal, shipping, couponDiscount, spendDiscount, discount: totalDiscount, tax, grand };
+  return { itemTotal, shipping, couponDiscount, spendDiscount, discount: totalDiscount, tax, grand, spendDiscountRule: spendResult.rule || null, spendDiscountRules: spendResult.rules || [] };
 }
 function cartCount(){ return State.cart.reduce((a,c)=>a+c.qty,0); }
 function optsSummary(opts){
@@ -700,20 +701,24 @@ function cleanCart(){
 }
 
 /* ================================================================
-   SPEND-BASED DISCOUNT RULES
+   SPEND-THRESHOLD DISCOUNT SYSTEM
    Stored in Firestore: settings/site -> spendDiscountRules (array)
    Each rule:
    {
      id: string,
      name: string,
-     minSpend: number (PKR),
-     discountAmount: number (PKR),
-     scope: 'store' | 'category' | 'product',
-     category: string | null,        // when scope === 'category'
-     productIds: string[] | null,    // when scope === 'product'
+     minSpend: number (PKR),        — threshold to qualify
+     discountAmount: number (PKR),  — flat discount applied
+     scope: 'store' | 'category' | 'product',  — what counts toward threshold
+     category: string | null,       — when scope === 'category'
+     productIds: string[] | null,   — when scope === 'product'
+     discountTarget: 'store' | 'category' | 'product',  — where discount applies
+     discountCategory: string | null,  — when discountTarget === 'category'
+     discountProductIds: string[] | null,  — when discountTarget === 'product'
      active: boolean,
      startDate: string | null,
-     endDate: string | null
+     endDate: string | null,
+     // stacking is a global setting in site settings, not per-rule
    }
    ================================================================ */
 
@@ -734,15 +739,16 @@ function spendDiscountRules(){
 }
 
 function calcQualifyingAmount(rule, cartItems){
-  // cartItems: array of { id, qty } from State.cart
+  // Returns the total that counts toward the threshold based on rule.scope
   if(rule.scope === 'store') return cartItems.reduce((s, c) => {
     const p = State.products[c.id];
     return s + (p ? effPrice(p) * c.qty : 0);
   }, 0);
   if(rule.scope === 'category'){
+    const cat = rule.category;
     return cartItems.reduce((s, c) => {
       const p = State.products[c.id];
-      if(p && p.category === rule.category) return s + effPrice(p) * c.qty;
+      if(p && p.category === cat) return s + effPrice(p) * c.qty;
       return s;
     }, 0);
   }
@@ -758,35 +764,62 @@ function calcQualifyingAmount(rule, cartItems){
   return 0;
 }
 
+function calcDiscountTargetAmount(rule, cartItems){
+  // Returns the actual discount PKR based on discountTarget scope
+  const fullDiscount = Number(rule.discountAmount || 0);
+  if(!fullDiscount) return 0;
+  const target = rule.discountTarget || 'store';
+  if(target === 'store') return fullDiscount;
+  // For category/product targets, scale proportionally to the target's share of itemTotal
+  let targetSubtotal = 0;
+  if(target === 'category' && rule.discountCategory){
+    cartItems.forEach(c => {
+      const p = State.products[c.id];
+      if(p && p.category === rule.discountCategory) targetSubtotal += effPrice(p) * c.qty;
+    });
+  } else if(target === 'product' && Array.isArray(rule.discountProductIds)){
+    cartItems.forEach(c => {
+      if(rule.discountProductIds.includes(c.id)){
+        const p = State.products[c.id];
+        targetSubtotal += p ? effPrice(p) * c.qty : 0;
+      }
+    });
+  }
+  if(targetSubtotal <= 0) return 0;
+  // Calculate what portion of the itemTotal the target represents
+  let itemTotal = 0;
+  cartItems.forEach(c => { const p = State.products[c.id]; if(p) itemTotal += effPrice(p) * c.qty; });
+  if(itemTotal <= 0) return 0;
+  const scaled = fullDiscount * (targetSubtotal / itemTotal);
+  // Cap discount so it never exceeds the target subtotal
+  return Math.min(Math.round(scaled), Math.round(targetSubtotal));
+}
+
 function calcSpendDiscount(cartItems){
-  // Returns the best applicable spend-based discount amount in PKR
+  // Returns { amount: number, rule: object|null } (best) or { amount: number, rules: object[] } (stack)
+  const stacking = (State.settings?.spendDiscountStacking) || 'best';
   const rules = spendDiscountRules();
-  if(!rules.length || !cartItems.length) return 0;
-  let best = 0;
+  if(!rules.length || !cartItems.length) return { amount: 0, rule: null, rules: [] };
+  const applicable = [];
   for(const rule of rules){
     const qual = calcQualifyingAmount(rule, cartItems);
     if(qual >= Number(rule.minSpend || 0)){
-      const d = Number(rule.discountAmount || 0);
-      if(d > best) best = d;
+      applicable.push({ rule, amount: calcDiscountTargetAmount(rule, cartItems) });
     }
   }
-  return best;
+  if(!applicable.length) return { amount: 0, rule: null, rules: [] };
+  if(stacking === 'stack'){
+    const total = applicable.reduce((s, r) => s + r.amount, 0);
+    return { amount: Math.min(total, Math.round(cartItems.reduce((s,c) => { const p = State.products[c.id]; return s + (p ? effPrice(p) * c.qty : 0); }, 0))), rule: null, rules: applicable.map(r => r.rule) };
+  }
+  // best mode
+  applicable.sort((a, b) => b.amount - a.amount);
+  return { amount: applicable[0].amount, rule: applicable[0].rule, rules: [applicable[0].rule] };
 }
 
 function calcSpendDiscountProgress(cartItems){
-  // Returns { remaining, minSpend, ruleName } for the best applicable rule
-  // that the customer hasn't yet qualified for. Returns null if none applicable.
   const rules = spendDiscountRules();
   if(!rules.length || !cartItems.length) return null;
-  let bestRule = null, bestQual = -1;
-  for(const rule of rules){
-    const qual = calcQualifyingAmount(rule, cartItems);
-    if(qual >= Number(rule.minSpend || 0)){
-      if(!bestRule || qual > bestQual){ bestRule = rule; bestQual = qual; }
-    }
-  }
-  if(bestRule) return null; // already qualifies for the best rule
-  // Find the rule closest to qualifying
   let closest = null, closestGap = Infinity;
   for(const rule of rules){
     const qual = calcQualifyingAmount(rule, cartItems);
@@ -794,9 +827,41 @@ function calcSpendDiscountProgress(cartItems){
     if(gap > 0 && gap < closestGap){ closest = rule; closestGap = gap; }
   }
   if(closest && closestGap <= 5000){
-    return { remaining: Math.ceil(closestGap), minSpend: closest.minSpend, name: closest.name, discount: closest.discountAmount };
+    return {
+      remaining: Math.ceil(closestGap),
+      minSpend: closest.minSpend,
+      name: closest.name,
+      discount: closest.discountAmount,
+      scope: closest.scope,
+      category: closest.scope === 'category' ? closest.category : null,
+      productIds: closest.scope === 'product' ? closest.productIds : null,
+      discountTarget: closest.discountTarget
+    };
   }
   return null;
+}
+
+function spendDiscountTargetLabel(rule){
+  // Human-readable description of what the discount applies to
+  if(!rule) return '';
+  if(rule.discountTarget === 'store' || !rule.discountTarget) return 'Entire order';
+  if(rule.discountTarget === 'category') return escapeHtml(rule.discountCategory || 'Category');
+  if(rule.discountTarget === 'product' && rule.discountProductIds?.length){
+    const names = rule.discountProductIds.map(id => State.products[id]?.name || id).filter(Boolean);
+    return names.length ? escapeHtml(names.join(', ')) : 'Selected products';
+  }
+  return 'Selected products';
+}
+
+function spendDiscountScopeLabel(rule){
+  if(!rule) return '';
+  if(rule.scope === 'store') return 'Entire store';
+  if(rule.scope === 'category') return escapeHtml(rule.category || 'Category');
+  if(rule.scope === 'product' && rule.productIds?.length){
+    const names = rule.productIds.map(id => State.products[id]?.name || id).filter(Boolean);
+    return names.length ? escapeHtml(names.join(', ')) : 'Selected products';
+  }
+  return '';
 }
 
 function spendDiscountLabel(rule){
@@ -809,7 +874,8 @@ function cartHasSpendDiscountProgress(cartItems){
 function spendDiscountProgressText(cartItems){
   const prog = calcSpendDiscountProgress(cartItems || State.cart);
   if(!prog) return '';
-  return `Spend PKR ${prog.remaining.toLocaleString()} more to unlock PKR ${prog.discount.toLocaleString()} off`;
+  const scopeWord = prog.scope === 'store' ? 'any items' : prog.scope === 'category' ? (prog.category || 'this category') : 'selected items';
+  return `Spend PKR ${prog.remaining.toLocaleString()} more on ${escapeHtml(scopeWord)} to unlock PKR ${prog.discount.toLocaleString()} off`;
 }
 function saleTick(){
   const st = saleState();
@@ -1050,7 +1116,10 @@ function CartDrawer(){
       <div class="flex justify-between text-sm"><span>Subtotal</span><span>${money(t.itemTotal)}</span></div>
       <div class="flex justify-between text-sm"><span>Shipping</span><span>${t.shipping===0?'Free':money(t.shipping)}</span></div>
       ${t.couponDiscount>0? `<div class="flex justify-between text-sm text-green-600"><span>Coupon Discount</span><span>-${money(t.couponDiscount)}</span></div>`:''}
-      ${t.spendDiscount>0? `<div class="flex justify-between text-sm text-green-600"><span>Spend Discount</span><span>-${money(t.spendDiscount)}</span></div>`:''}
+      ${t.spendDiscount>0 && t.spendDiscountRule ? `<div class="text-green-600">
+        <div class="flex justify-between text-sm"><span>${escapeHtml(t.spendDiscountRule.name)}</span><span>-${money(t.spendDiscount)}</span></div>
+        <p class="text-[10px] text-gray-400 mt-0.5">${spendDiscountLabel(t.spendDiscountRule)} &middot; Discount applies to ${spendDiscountTargetLabel(t.spendDiscountRule)}</p>
+      </div>` : (t.spendDiscount>0 ? `<div class="flex justify-between text-sm text-green-600"><span>Spend Discount</span><span>-${money(t.spendDiscount)}</span></div>` : '')}
       ${cartHasSpendDiscountProgress()? `<p class="text-xs text-amber-600 font-medium">${spendDiscountProgressText()}</p>`:''}
       <div class="flex justify-between font-semibold text-base pt-2 border-t border-gray-100"><span>Total</span><span>${money(t.grand)}</span></div>
       <button onclick="window.goCheckout()" class="btn-primary w-full py-3.5 rounded-xl font-medium mt-3">Checkout</button>
@@ -1461,7 +1530,13 @@ function pageCheckout(){
             <div class="flex justify-between"><span>Shipping</span><span>${t.shipping===0?'Free':money(t.shipping)}</span></div>
             <div class="flex justify-between"><span>Tax</span><span>${money(t.tax)}</span></div>
             ${t.couponDiscount>0? `<div class="flex justify-between text-green-600"><span>Coupon (${State.appliedCoupon})</span><span>-${money(t.couponDiscount)}</span></div>`:''}
-            ${t.spendDiscount>0? `<div class="flex justify-between text-green-600"><span>Spend Discount</span><span>-${money(t.spendDiscount)}</span></div>`:''}
+            ${t.spendDiscount>0 && t.spendDiscountRules?.length ? t.spendDiscountRules.map(r => `<div class="text-green-600">
+              <div class="flex justify-between text-sm"><span>${escapeHtml(r.name)}</span><span>-${money(calcDiscountTargetAmount(r, State.cart))}</span></div>
+              <p class="text-[10px] text-gray-400 mt-0.5">${spendDiscountLabel(r)} &middot; Discount applies to ${spendDiscountTargetLabel(r)}</p>
+            </div>`).join('') : (t.spendDiscount>0 && t.spendDiscountRule ? `<div class="text-green-600">
+              <div class="flex justify-between text-sm"><span>${escapeHtml(t.spendDiscountRule.name)}</span><span>-${money(t.spendDiscount)}</span></div>
+              <p class="text-[10px] text-gray-400 mt-0.5">${spendDiscountLabel(t.spendDiscountRule)} &middot; Discount applies to ${spendDiscountTargetLabel(t.spendDiscountRule)}</p>
+            </div>` : (t.spendDiscount>0 ? `<div class="flex justify-between text-green-600"><span>Spend Discount</span><span>-${money(t.spendDiscount)}</span></div>` : ''))}
             <div class="flex justify-between font-semibold text-base pt-2 border-t border-gray-300/40"><span>Grand Total</span><span>${money(t.grand)}</span></div>
           </div>
         </div>
@@ -1500,6 +1575,24 @@ window.placeOrder = async function(form){
     coupon: State.appliedCoupon || null,
     couponDiscount: t.couponDiscount || 0,
     spendDiscount: t.spendDiscount || 0,
+    spendDiscountRule: t.spendDiscountRule ? {
+      id: t.spendDiscountRule.id,
+      name: t.spendDiscountRule.name,
+      minSpend: t.spendDiscountRule.minSpend,
+      discountAmount: t.spendDiscountRule.discountAmount,
+      scope: t.spendDiscountRule.scope,
+      category: t.spendDiscountRule.category || null,
+      productIds: t.spendDiscountRule.productIds || null,
+      discountTarget: t.spendDiscountRule.discountTarget || 'store',
+      discountCategory: t.spendDiscountRule.discountCategory || null,
+      discountProductIds: t.spendDiscountRule.discountProductIds || null
+    } : null,
+    spendDiscountRules: t.spendDiscountRules?.length ? t.spendDiscountRules.map(r => ({
+      id: r.id, name: r.name, minSpend: r.minSpend, discountAmount: r.discountAmount,
+      scope: r.scope, category: r.category || null, productIds: r.productIds || null,
+      discountTarget: r.discountTarget || 'store', discountCategory: r.discountCategory || null,
+      discountProductIds: r.discountProductIds || null
+    })) : null,
     status: 'Pending',
     createdAt: Date.now(),
     inventoryProcessed: false
@@ -1584,7 +1677,10 @@ function pageOrderConfirmation(orderId){
     <div class="bg-white border border-gray-100 rounded-2xl p-6 text-left space-y-3">
       <h3 class="font-medium mb-2">Order Summary</h3>
       ${order.items.map(it=>`<div class="text-sm"><div class="flex justify-between"><span>${escapeHtml(it.name)} x${it.qty}</span><span>${money(it.price*it.qty)}</span></div>${optsSummary(it.opts)?`<p class="text-xs text-gray-400">${optsSummary(it.opts)}</p>`:''}</div>`).join('')}
-      ${order.spendDiscount > 0 ? `<div class="flex justify-between text-sm text-green-600"><span>Spend Discount</span><span>-${money(order.spendDiscount)}</span></div>` : ''}
+      ${order.spendDiscount > 0 ? `<div class="text-green-600">
+        <div class="flex justify-between text-sm"><span>${order.spendDiscountRule ? escapeHtml(order.spendDiscountRule.name) : 'Spend Discount'}</span><span>-${money(order.spendDiscount)}</span></div>
+        ${order.spendDiscountRule ? `<p class="text-[10px] text-gray-400 mt-0.5">Spend PKR ${Number(order.spendDiscountRule.minSpend).toLocaleString()} &rarr; Get PKR ${Number(order.spendDiscountRule.discountAmount).toLocaleString()} off &middot; Discount applies to ${order.spendDiscountRule.discountTarget === 'store' ? 'entire order' : order.spendDiscountRule.discountTarget === 'category' ? escapeHtml(order.spendDiscountRule.discountCategory || '') : 'selected products'}</p>` : ''}
+      </div>` : ''}
       <div class="border-t border-gray-100 pt-3 flex justify-between font-semibold"><span>Grand Total</span><span>${money(order.totals.grand)}</span></div>
       <p class="text-xs text-gray-400 pt-2">Shipping to: ${escapeHtml(order.customer.address)}, ${escapeHtml(order.customer.city)}, ${escapeHtml(order.customer.province)}, ${escapeHtml(order.customer.country)}</p>
       <p class="text-xs text-gray-400">Payment method: ${order.payment==='cod'?'Cash on Delivery':'Bank Transfer'}</p>
@@ -1640,7 +1736,10 @@ function trackOrderResultHtml(orderId){
     </div>` : '<p class="text-sm text-red-500 mb-6">This order has been cancelled.</p>'}
     <div class="space-y-2 border-t border-gray-100 pt-4">
       ${order.items.map(it=>`<div class="flex justify-between text-sm"><span>${escapeHtml(it.name)} x${it.qty}</span><span>${money(it.price*it.qty)}</span></div>`).join('')}
-      ${order.spendDiscount > 0 ? `<div class="flex justify-between text-sm text-green-600"><span>Spend Discount</span><span>-${money(order.spendDiscount)}</span></div>` : ''}
+      ${order.spendDiscount > 0 ? `<div class="text-green-600">
+        <div class="flex justify-between text-sm"><span>${order.spendDiscountRule ? escapeHtml(order.spendDiscountRule.name) : 'Spend Discount'}</span><span>-${money(order.spendDiscount)}</span></div>
+        ${order.spendDiscountRule ? `<p class="text-[10px] text-gray-400 mt-0.5">Spend PKR ${Number(order.spendDiscountRule.minSpend).toLocaleString()} &rarr; Get PKR ${Number(order.spendDiscountRule.discountAmount).toLocaleString()} off &middot; Discount applies to ${order.spendDiscountRule.discountTarget === 'store' ? 'entire order' : order.spendDiscountRule.discountTarget === 'category' ? escapeHtml(order.spendDiscountRule.discountCategory || '') : 'selected products'}</p>` : ''}
+      </div>` : ''}
       ${order.couponDiscount > 0 ? `<div class="flex justify-between text-sm text-green-600"><span>Coupon (${order.coupon || 'N/A'})</span><span>-${money(order.couponDiscount)}</span></div>` : ''}
       <div class="flex justify-between font-semibold text-base pt-2 border-t border-gray-100"><span>Grand Total</span><span>${money(order.totals.grand)}</span></div>
     </div>
@@ -1671,7 +1770,7 @@ function pageProfile(){
             <span class="text-xs px-3 py-1 rounded-full bg-cream2 text-primary">${escapeHtml(o.status||'Pending')}</span>
           </div>
           <p class="text-xs text-gray-400 mb-2">${new Date(o.createdAt).toLocaleString()}</p>
-          <p class="text-sm text-gray-600">${o.items.length} item(s) &middot; <span class="font-semibold text-primary">${money(o.totals.grand)}</span>${o.spendDiscount > 0 ? ` <span class="text-green-600 text-xs">(-${money(o.spendDiscount)} spend discount)</span>` : ''}</p>
+          <p class="text-sm text-gray-600">${o.items.length} item(s) &middot; <span class="font-semibold text-primary">${money(o.totals.grand)}</span>${o.spendDiscount>0 && o.spendDiscountRule ? ` <span class="text-green-600 text-xs">(-${money(o.spendDiscount)} ${escapeHtml(o.spendDiscountRule.name||'')})</span>` : (o.spendDiscount>0 ? ` <span class="text-green-600 text-xs">(-${money(o.spendDiscount)} spend discount)</span>` : '')}</p>
         </div>`).join('')}
     </div>`}
   </div>`;
@@ -2071,7 +2170,7 @@ function pageAdminOrders(){
           <p class="text-sm text-gray-600">${escapeHtml(o.customer.name)} &middot; ${escapeHtml(o.customer.email)} &middot; ${escapeHtml(o.customer.phone)}</p>
           <p class="text-xs text-gray-400 mb-2">${escapeHtml(o.customer.address)}, ${escapeHtml(o.customer.city)}, ${escapeHtml(o.customer.province)}, ${escapeHtml(o.customer.country)}</p>
           <p class="text-sm">${o.items.map(it=>escapeHtml(it.name)+' x'+it.qty+(optsSummary(it.opts)?' ('+optsSummary(it.opts)+')':'')).join(', ')}</p>
-          ${o.spendDiscount > 0 ? `<p class="text-xs text-green-600">Spend discount: -${money(o.spendDiscount)}</p>` : ''}
+          ${o.spendDiscount > 0 ? `<p class="text-xs text-green-600">${o.spendDiscountRule ? escapeHtml(o.spendDiscountRule.name)+': ' : 'Spend discount: '}-${money(o.spendDiscount)}</p>` : ''}
           ${o.couponDiscount > 0 ? `<p class="text-xs text-green-600">Coupon (${o.coupon || 'N/A'}): -${money(o.couponDiscount)}</p>` : ''}
           <p class="font-semibold text-primary mt-1">${money(o.totals.grand)}</p>
         </div>`).join('')}
@@ -2135,6 +2234,18 @@ function pageAdminSettings(){
       </div>
     </div>
     <div class="bg-white border border-gray-100 rounded-2xl p-6 mt-8 max-w-lg">
+      <h3 class="font-medium mb-4">Spend Discount Rules</h3>
+      <p class="text-xs text-gray-400 mb-4">How multiple matching discount rules are applied.</p>
+      <div class="flex flex-wrap gap-4">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="spendDiscountStacking" value="best" ${(s.spendDiscountStacking||'best')==='best'?'checked':''}> Best only (recommended)
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="spendDiscountStacking" value="stack" ${s.spendDiscountStacking==='stack'?'checked':''}> Stack (all applicable combine)
+        </label>
+      </div>
+    </div>
+    <div class="bg-white border border-gray-100 rounded-2xl p-6 mt-6 max-w-lg">
       <h3 class="font-medium mb-1">Admin Access</h3>
       <p class="text-xs text-gray-400 mb-4">Type an email below and they'll get full admin access next time they sign in with that Google/email account. This is in addition to the permanent admins built into the code.</p>
       <div class="flex gap-2 mb-4">
@@ -2205,7 +2316,8 @@ window.saveSiteSettings = async function(form){
       heroSubtitle: form.heroSubtitle.value,
       heroImage: State.settings.heroImage,
       logoUrl: State.settings.logoUrl,
-      categoryImages: { ...(State.settings.categoryImages||{}) }
+      categoryImages: { ...(State.settings.categoryImages||{}) },
+      spendDiscountStacking: form.spendDiscountStacking?.value || 'best'
     };
     if(pendingSettingsImages.hero) update.heroImage = await uploadSiteImage(pendingSettingsImages.hero, 'hero');
     if(pendingSettingsImages.logo) update.logoUrl = await uploadSiteImage(pendingSettingsImages.logo, 'logo');
@@ -2259,79 +2371,127 @@ function pageAdminDiscounts(){
   const inactiveRules = allRules.filter(r => !r.active);
   return `
   <div class="max-w-4xl mx-auto px-4 py-8 md:py-12">
-    <h1 class="font-serif text-2xl md:text-3xl mb-2">Spend-Based Discount Rules</h1>
-    <p class="text-sm text-gray-500 mb-6">Create rules that automatically apply a discount when a customer's cart reaches a spending threshold.</p>
+    <h1 class="font-serif text-2xl md:text-3xl mb-2">Spend-Threshold Discount Rules</h1>
+    <p class="text-sm text-gray-500 mb-6">Create rules like "Spend PKR 5,000 on Jewelry &rarr; Get PKR 500 off" or "Spend PKR 3,000 on CustomRing &rarr; Get PKR 500 off CustomRing". Configure what counts toward the threshold and where the discount applies separately.</p>
     ${adminNav('#admin/discounts')}
     <div class="grid gap-6">
       <!-- Create / Edit Rule Form -->
-      <form id="discount-rule-form" onsubmit="event.preventDefault(); window.saveDiscountRule(this)" class="bg-white border border-gray-100 rounded-2xl p-6 md:p-8 space-y-5">
+      <form id="discount-rule-form" onsubmit="event.preventDefault(); window.saveDiscountRule(this)" class="bg-white border border-gray-100 rounded-2xl p-6 md:p-8 space-y-6">
         <h3 class="font-medium text-lg" id="discount-form-title">New Discount Rule</h3>
         <input type="hidden" name="ruleId" id="discount-rule-id" value="">
         <div class="grid md:grid-cols-2 gap-5">
           <div class="md:col-span-2">
-            <label class="text-sm font-medium block mb-1">Rule Name</label>
-            <input name="name" id="discount-rule-name" placeholder="e.g. Bulk Order Discount" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" required>
+            <label class="text-sm font-medium block mb-1">Rule Name <span class="text-gray-400">(internal reference)</span></label>
+            <input name="name" id="discount-rule-name" placeholder="e.g. Jewelry Bulk Discount" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" required>
           </div>
           <div>
             <label class="text-sm font-medium block mb-1">Minimum Spend (PKR)</label>
-            <input name="minSpend" id="discount-rule-min" type="number" min="1" step="1" placeholder="3000" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" required>
-            <p class="text-xs text-gray-400 mt-1">Customer must spend at least this amount to qualify.</p>
+            <input name="minSpend" id="discount-rule-min" type="number" min="1" step="1" placeholder="5000" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" required>
+            <p class="text-xs text-gray-400 mt-1">Customer must spend this amount to qualify.</p>
           </div>
           <div>
-            <label class="text-sm font-medium block mb-1">Discount Amount (PKR)</label>
+            <label class="text-sm font-medium block mb-1">Discount (PKR)</label>
             <input name="discountAmount" id="discount-rule-discount" type="number" min="1" step="1" placeholder="500" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" required>
-            <p class="text-xs text-gray-400 mt-1">Flat PKR amount off the qualifying subtotal.</p>
-          </div>
-          <div class="md:col-span-2">
-            <label class="text-sm font-medium block mb-2">Apply Discount To</label>
-            <div class="flex flex-wrap gap-4">
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="scope" value="store" checked onchange="window.toggleDiscountScopeFields()"> Entire Store
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="scope" value="category" onchange="window.toggleDiscountScopeFields()"> Specific Category
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="scope" value="product" onchange="window.toggleDiscountScopeFields()"> Specific Product(s)
-              </label>
-            </div>
-          </div>
-          <div id="discount-category-field" class="hidden">
-            <label class="text-sm font-medium block mb-1">Category</label>
-            <select name="category" id="discount-rule-category" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
-              ${CATEGORIES.filter(c=>c!=='Deals').map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
-            </select>
-          </div>
-          <div id="discount-products-field" class="hidden md:col-span-2">
-            <label class="text-sm font-medium block mb-1">Select Products</label>
-            <div id="discount-product-list" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-3">
-              ${Object.entries(State.products).map(([id,p])=>`
-                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-cream2 rounded-lg px-3 py-1.5">
-                  <input type="checkbox" name="productIds" value="${id}" class="discount-product-cb"> ${escapeHtml(p.name)}
-                </label>`).join('') || '<p class="text-xs text-gray-400">No products available</p>'}
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="text-sm font-medium block mb-1">Start Date (optional)</label>
-              <input name="startDate" type="date" id="discount-rule-start" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
-            </div>
-            <div>
-              <label class="text-sm font-medium block mb-1">Start Time (optional)</label>
-              <input name="startTime" type="time" id="discount-rule-start-time" value="00:00" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="text-sm font-medium block mb-1">End Date (optional)</label>
-              <input name="endDate" type="date" id="discount-rule-end" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
-            </div>
-            <div>
-              <label class="text-sm font-medium block mb-1">End Time (optional)</label>
-              <input name="endTime" type="time" id="discount-rule-end-time" value="23:59" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
-            </div>
+            <p class="text-xs text-gray-400 mt-1">Flat PKR amount off.</p>
           </div>
         </div>
+
+        <!-- Qualifying Scope: what counts toward the threshold -->
+        <div>
+          <label class="text-sm font-medium block mb-2">Qualifying Scope <span class="text-gray-400">(what counts toward the threshold)</span></label>
+          <div class="flex flex-wrap gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="scope" value="store" checked onchange="window.toggleDiscountFields()"> Entire Store
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="scope" value="category" onchange="window.toggleDiscountFields()"> Specific Category
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="scope" value="product" onchange="window.toggleDiscountFields()"> Specific Product(s)
+            </label>
+          </div>
+        </div>
+        <div id="discount-category-field" class="hidden">
+          <label class="text-sm font-medium block mb-1">Category</label>
+          <select name="category" id="discount-rule-category" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+            ${CATEGORIES.filter(c=>c!=='Deals').map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+          </select>
+          <p class="text-xs text-gray-400 mt-1">Only products in this category count toward the threshold.</p>
+        </div>
+        <div id="discount-products-field" class="hidden">
+          <label class="text-sm font-medium block mb-1">Select Products</label>
+          <div id="discount-product-list" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-3">
+            ${Object.entries(State.products).map(([id,p])=>`
+              <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-cream2 rounded-lg px-3 py-1.5">
+                <input type="checkbox" name="productIds" value="${id}" class="discount-product-cb"> ${escapeHtml(p.name)}
+              </label>`).join('') || '<p class="text-xs text-gray-400">No products available</p>'}
+          </div>
+          <p class="text-xs text-gray-400 mt-1">Only selected products count toward the threshold.</p>
+        </div>
+
+        <!-- Separator -->
+        <div class="border-t border-gray-200 pt-4">
+          <p class="text-xs text-gray-400 mb-3">Now configure where the discount is applied. This can be different from the qualifying scope above.</p>
+        </div>
+
+        <!-- Discount Target: where the discount applies -->
+        <div>
+          <label class="text-sm font-medium block mb-2">Discount Applies To <span class="text-gray-400">(where the PKR discount is subtracted from)</span></label>
+          <div class="flex flex-wrap gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="discountTarget" value="store" checked onchange="window.toggleDiscountTargetFields()"> Entire Order
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="discountTarget" value="category" onchange="window.toggleDiscountTargetFields()"> Specific Category
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="discountTarget" value="product" onchange="window.toggleDiscountTargetFields()"> Specific Product(s)
+            </label>
+          </div>
+        </div>
+        <div id="discount-target-category-field" class="hidden">
+          <label class="text-sm font-medium block mb-1">Category</label>
+          <select name="discountCategory" id="discount-rule-target-category" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+            ${CATEGORIES.filter(c=>c!=='Deals').map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+          </select>
+          <p class="text-xs text-gray-400 mt-1">The discount is subtracted from this category's subtotal.</p>
+        </div>
+        <div id="discount-target-products-field" class="hidden">
+          <label class="text-sm font-medium block mb-1">Select Products</label>
+          <div id="discount-target-product-list" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-3">
+            ${Object.entries(State.products).map(([id,p])=>`
+              <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-cream2 rounded-lg px-3 py-1.5">
+                <input type="checkbox" name="discountProductIds" value="${id}" class="discount-target-product-cb"> ${escapeHtml(p.name)}
+              </label>`).join('') || '<p class="text-xs text-gray-400">No products available</p>'}
+          </div>
+          <p class="text-xs text-gray-400 mt-1">The discount is subtracted from these products' subtotal.</p>
+        </div>
+
+        <!-- Stacking note -->
+        <p class="text-xs text-gray-400">Discount stacking (best vs. stack) is configured in <a href="#admin/settings" class="underline text-primary">Site Settings</a>.</p>
+
+        <!-- Date range -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm font-medium block mb-1">Start Date (optional)</label>
+            <input name="startDate" type="date" id="discount-rule-start" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-1">Start Time (optional)</label>
+            <input name="startTime" type="time" id="discount-rule-start-time" value="00:00" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm font-medium block mb-1">End Date (optional)</label>
+            <input name="endDate" type="date" id="discount-rule-end" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-1">End Time (optional)</label>
+            <input name="endTime" type="time" id="discount-rule-end-time" value="23:59" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+          </div>
+        </div>
+
         <div class="flex gap-3">
           <button type="submit" class="btn-primary px-8 py-3.5 rounded-xl font-medium" id="discount-form-btn">Create Rule</button>
           <button type="button" onclick="window.resetDiscountForm()" class="border border-gray-200 px-6 py-3.5 rounded-xl text-sm font-medium" id="discount-form-cancel" style="display:none">Cancel Edit</button>
@@ -2343,18 +2503,22 @@ function pageAdminDiscounts(){
         <h3 class="font-medium text-lg mb-4">Active Rules</h3>
         ${rules.length === 0 ? '<p class="text-sm text-gray-400">No active rules right now.</p>' : `
         <div class="space-y-3">
-          ${rules.map(r => `
+          ${rules.map(r => {
+            const qualScope = r.scope==='store'?'Entire store':r.scope==='category'?'<strong>'+escapeHtml(r.category||'')+'</strong>':r.productIds?.length+' product(s)';
+            const discTarget = r.discountTarget==='store'?'Entire order':r.discountTarget==='category'?'<strong>'+escapeHtml(r.discountCategory||'')+'</strong>':r.discountProductIds?.length+' product(s)';
+            return `
             <div class="flex flex-wrap items-center justify-between gap-3 bg-cream2 rounded-xl p-4">
               <div>
                 <p class="font-medium text-sm">${escapeHtml(r.name)}</p>
-                <p class="text-xs text-gray-500 mt-0.5">${spendDiscountLabel(r)} &middot; ${r.scope==='store'?'Entire store':(r.scope==='category'?escapeHtml(r.category||''):r.productIds?.length+' product(s)')}</p>
-                ${r.startDate ? `<p class="text-[10px] text-gray-400 mt-0.5">${r.startDate} ${r.startTime||'00:00'} → ${r.endDate||''} ${r.endTime||'23:59'}</p>` : ''}
+                <p class="text-xs text-gray-500 mt-0.5">Spend PKR ${Number(r.minSpend).toLocaleString()} on ${qualScope} &rarr; Get PKR ${Number(r.discountAmount).toLocaleString()} off ${discTarget}</p>
+                <p class="text-[10px] text-gray-400 mt-0.5">${r.startDate ? r.startDate+' '+((r.startTime||'00:00').substring(0,5))+' &rarr; '+r.endDate+' '+((r.endTime||'23:59').substring(0,5)) : ''}</p>
               </div>
               <div class="flex gap-2">
                 <button type="button" onclick="window.editDiscountRule('${r.id}')" class="text-xs border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-white transition">Edit</button>
                 <button type="button" onclick="window.toggleDiscountRule('${r.id}')" class="text-xs border border-red-200 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-50 transition">Deactivate</button>
               </div>
-            </div>`).join('')}
+            </div>`;
+          }).join('')}
         </div>`}
       </div>
 
@@ -2366,7 +2530,7 @@ function pageAdminDiscounts(){
             <div class="flex flex-wrap items-center justify-between gap-3 bg-gray-50 rounded-xl p-4 opacity-70">
               <div>
                 <p class="font-medium text-sm text-gray-500">${escapeHtml(r.name)}</p>
-                <p class="text-xs text-gray-400 mt-0.5">${spendDiscountLabel(r)}</p>
+                <p class="text-xs text-gray-400 mt-0.5">Spend PKR ${Number(r.minSpend).toLocaleString()} &rarr; Get PKR ${Number(r.discountAmount).toLocaleString()} off</p>
               </div>
               <div class="flex gap-2">
                 <button type="button" onclick="window.editDiscountRule('${r.id}')" class="text-xs border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-white transition">Edit</button>
@@ -2378,25 +2542,24 @@ function pageAdminDiscounts(){
     </div>
   </div>`;
 }
-window.toggleDiscountScopeFields = function(){
-  const scope = document.querySelector('input[name="scope"]:checked')?.value || 'store';
-  document.getElementById('discount-category-field').classList.toggle('hidden', scope !== 'category');
-  const prodField = document.getElementById('discount-products-field');
-  prodField.classList.toggle('hidden', scope !== 'product');
-};
 window.saveDiscountRule = async function(form){
   if(!requireFirebase()) return;
   const scope = form.scope.value;
-  // Validation
+  const discountTarget = form.discountTarget?.value || 'store';
   const minSpend = Number(form.minSpend.value);
   const discountAmount = Number(form.discountAmount.value);
   if(minSpend <= 0){ toast('Minimum spend must be greater than 0','err'); return; }
   if(discountAmount <= 0){ toast('Discount amount must be greater than 0','err'); return; }
   if(discountAmount >= minSpend){ toast('Discount amount must be less than the minimum spend','err'); return; }
-  if(scope === 'category' && !form.category.value){ toast('Please select a category','err'); return; }
+  if(scope === 'category' && !form.category.value){ toast('Please select a qualifying category','err'); return; }
   if(scope === 'product'){
     const checked = form.querySelectorAll('.discount-product-cb:checked');
-    if(checked.length === 0){ toast('Please select at least one product','err'); return; }
+    if(checked.length === 0){ toast('Please select at least one qualifying product','err'); return; }
+  }
+  if(discountTarget === 'category' && !form.discountCategory.value){ toast('Please select a discount target category','err'); return; }
+  if(discountTarget === 'product'){
+    const checked = form.querySelectorAll('.discount-target-product-cb:checked');
+    if(checked.length === 0){ toast('Please select at least one discount target product','err'); return; }
   }
 
   const btn = document.getElementById('discount-form-btn');
@@ -2412,6 +2575,9 @@ window.saveDiscountRule = async function(form){
       scope,
       category: scope === 'category' ? form.category.value : null,
       productIds: scope === 'product' ? Array.from(form.querySelectorAll('.discount-product-cb:checked')).map(cb=>cb.value) : null,
+      discountTarget,
+      discountCategory: discountTarget === 'category' ? form.discountCategory.value : null,
+      discountProductIds: discountTarget === 'product' ? Array.from(form.querySelectorAll('.discount-target-product-cb:checked')).map(cb=>cb.value) : null,
       active: true,
       startDate: form.startDate.value || null,
       startTime: form.startTime.value || null,
@@ -2452,6 +2618,13 @@ window.editDiscountRule = function(id){
       cb.checked = rule.productIds.includes(cb.value);
     });
   }
+  form.discountTarget.value = rule.discountTarget || 'store';
+  if(rule.discountTarget === 'category') form.discountCategory.value = rule.discountCategory || '';
+  if(rule.discountTarget === 'product' && rule.discountProductIds){
+    form.querySelectorAll('.discount-target-product-cb').forEach(cb => {
+      cb.checked = rule.discountProductIds.includes(cb.value);
+    });
+  }
   form.startDate.value = rule.startDate || '';
   form.startTime.value = rule.startTime || '00:00';
   form.endDate.value = rule.endDate || '';
@@ -2459,7 +2632,7 @@ window.editDiscountRule = function(id){
   document.getElementById('discount-form-title').textContent = 'Edit Discount Rule';
   document.getElementById('discount-form-btn').textContent = 'Update Rule';
   document.getElementById('discount-form-cancel').style.display = '';
-  window.toggleDiscountScopeFields();
+  window.toggleDiscountFields();
   form.scrollIntoView({ behavior:'smooth', block:'start' });
 };
 window.toggleDiscountRule = async function(id){
@@ -2484,9 +2657,23 @@ window.resetDiscountForm = function(){
   document.getElementById('discount-form-cancel').style.display = 'none';
   document.getElementById('discount-category-field').classList.add('hidden');
   document.getElementById('discount-products-field').classList.add('hidden');
-  // Reset scope to store
+  document.getElementById('discount-target-category-field').classList.add('hidden');
+  document.getElementById('discount-target-products-field').classList.add('hidden');
   const storeRadio = form.querySelector('input[name="scope"][value="store"]');
   if(storeRadio) storeRadio.checked = true;
+  const storeTargetRadio = form.querySelector('input[name="discountTarget"][value="store"]');
+  if(storeTargetRadio) storeTargetRadio.checked = true;
+};
+
+window.toggleDiscountFields = function(){
+  const scope = document.querySelector('input[name="scope"]:checked')?.value || 'store';
+  document.getElementById('discount-category-field').classList.toggle('hidden', scope !== 'category');
+  document.getElementById('discount-products-field').classList.toggle('hidden', scope !== 'product');
+};
+window.toggleDiscountTargetFields = function(){
+  const target = document.querySelector('input[name="discountTarget"]:checked')?.value || 'store';
+  document.getElementById('discount-target-category-field').classList.toggle('hidden', target !== 'category');
+  document.getElementById('discount-target-products-field').classList.toggle('hidden', target !== 'product');
 };
 
 /* ---------------- Footer ---------------- */
