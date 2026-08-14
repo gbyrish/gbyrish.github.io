@@ -487,13 +487,16 @@ function cartTotals(){
     if(p) itemTotal += effPrice(p) * c.qty;
   });
   const shipping = itemTotal > 0 ? (itemTotal >= 5000 ? 0 : 250) : 0;
-  let discount = 0;
+  let couponDiscount = 0;
   if(State.appliedCoupon && State.coupons[State.appliedCoupon]){
-    discount = Math.round(itemTotal * (State.coupons[State.appliedCoupon]/100));
+    couponDiscount = Math.round(itemTotal * (State.coupons[State.appliedCoupon]/100));
   }
-  const tax = Math.round((itemTotal - discount) * 0.0); // tax set to 0% (can be adjusted by admin later)
-  const grand = itemTotal - discount + shipping + tax;
-  return { itemTotal, shipping, discount, tax, grand };
+  const spendDiscount = calcSpendDiscount(State.cart);
+  const totalDiscount = couponDiscount + spendDiscount;
+  const subtotalAfterDiscounts = Math.max(0, itemTotal - totalDiscount);
+  const tax = Math.round(subtotalAfterDiscounts * 0.0); // tax set to 0%
+  const grand = Math.max(0, subtotalAfterDiscounts + shipping + tax);
+  return { itemTotal, shipping, couponDiscount, spendDiscount, discount: totalDiscount, tax, grand };
 }
 function cartCount(){ return State.cart.reduce((a,c)=>a+c.qty,0); }
 function optsSummary(opts){
@@ -610,11 +613,203 @@ function saleBanner(){
     </div>
   </section>`;
 }
+
+/* Slim dismissible sale bar — fixed at the very top of every page.
+   Dismissed per-browser via localStorage. Auto-resets when the sale
+   config changes (new sale event). */
+const SALE_BAR_DISMISS_KEY = 'gbyrish_sale_bar_dismissed';
+function getSaleBarDismissed(){
+  try{
+    const raw = localStorage.getItem(SALE_BAR_DISMISS_KEY);
+    if(!raw) return false;
+    const data = JSON.parse(raw);
+    // If the sale config has changed (new sale event), re-show the bar
+    const c = saleConfig();
+    const currentVersion = (c.name || '') + '|' + (c.startDate || '') + '|' + (c.endDate || '') + '|' + (c.discount || '');
+    if(data.version !== currentVersion) return false;
+    return data.dismissed === true;
+  }catch(e){ return false; }
+}
+function setSaleBarDismissed(){
+  try{
+    const c = saleConfig();
+    const version = (c.name || '') + '|' + (c.startDate || '') + '|' + (c.endDate || '') + '|' + (c.discount || '');
+    localStorage.setItem(SALE_BAR_DISMISS_KEY, JSON.stringify({ dismissed: true, version, ts: Date.now() }));
+  }catch(e){}
+}
+function saleTopBar(){
+  const st = saleState();
+  if(st !== 'active' || getSaleBarDismissed()) return '';
+  const c = saleConfig();
+  return `
+  <div id="sale-top-bar" class="fixed top-0 left-0 right-0 z-[200] bg-gradient-to-r from-primary to-primaryDark text-white">
+    <div class="max-w-7xl mx-auto px-4 md:px-8">
+      <div class="flex items-center justify-center py-2.5 md:py-3 gap-3 text-center">
+        <p class="text-xs md:text-sm font-medium truncate">
+          <span class="hidden md:inline">Limited Time Offer: </span>
+          ${escapeHtml(c.name || 'Sale')} —
+          <span class="font-semibold">${escapeHtml(c.description || '')}</span>
+          ${c.showCountdown && countdownText() ? `<span class="ml-1 opacity-90">Ends in: <span data-countdown>${countdownText()}</span></span>` : ''}
+          ${c.buttonLink ? `<a href="${escapeHtml(c.buttonLink)}" class="ml-2 underline text-white/90 hover:text-white text-xs md:text-sm">${escapeHtml(c.buttonText || 'Shop Now')}</a>` : ''}
+        </p>
+        <button onclick="window.dismissSaleBar()" class="shrink-0 ml-2 w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/20 transition" title="Dismiss">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 2l10 10M12 2L2 12"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div id="sale-bar-spacer"></div>`;
+}
+/* Position the header based on whether the sale bar is present.
+   Called after innerHTML is set so the header is in the DOM. */
+function positionHeaderForSaleBar(){
+  const bar = document.getElementById('sale-top-bar');
+  const h = document.querySelector('header');
+  if(!h) return;
+  if(bar){
+    const barH = bar.getBoundingClientRect().height;
+    const spacer = document.getElementById('sale-bar-spacer');
+    if(spacer) spacer.style.height = barH + 'px';
+    const isMobile = window.innerWidth < 768;
+    h.style.top = isMobile ? '48px' : '40px';
+  } else {
+    h.style.top = '0';
+  }
+  h.style.transition = 'top .3s ease';
+}
+window.dismissSaleBar = function(){
+  setSaleBarDismissed();
+  const bar = document.getElementById('sale-top-bar');
+  if(bar){
+    bar.style.transition = 'opacity .3s ease, transform .3s ease';
+    bar.style.opacity = '0';
+    bar.style.transform = 'translateY(-100%)';
+  }
+  // After animation completes, reset header position immediately
+  // (the bar element is still in DOM so we must manually reset)
+  setTimeout(()=>{
+    const h = document.querySelector('header');
+    if(h){ h.style.top = '0'; h.style.transition = 'top .3s ease'; }
+  }, 300);
+};
 function cleanCart(){
   if(!State.products) return;
   let changed = false;
   State.cart = State.cart.filter(c => { const keep = !!State.products[c.id]; if(!keep) changed = true; return keep; });
   if(changed) saveCart();
+}
+
+/* ================================================================
+   SPEND-BASED DISCOUNT RULES
+   Stored in Firestore: settings/site -> spendDiscountRules (array)
+   Each rule:
+   {
+     id: string,
+     name: string,
+     minSpend: number (PKR),
+     discountAmount: number (PKR),
+     scope: 'store' | 'category' | 'product',
+     category: string | null,        // when scope === 'category'
+     productIds: string[] | null,    // when scope === 'product'
+     active: boolean,
+     startDate: string | null,
+     endDate: string | null
+   }
+   ================================================================ */
+
+function spendDiscountRules(){
+  const s = State.settings || {};
+  const rules = s.spendDiscountRules;
+  if(!Array.isArray(rules)) return [];
+  const now = Date.now();
+  return rules.filter(r => {
+    if(!r || !r.active) return false;
+    if(r.startDate && r.endDate){
+      const start = parseSaleTime(r.startDate, r.startTime || '00:00');
+      const end = parseSaleTime(r.endDate, r.endTime || '23:59');
+      if(now < start || now >= end) return false;
+    }
+    return true;
+  });
+}
+
+function calcQualifyingAmount(rule, cartItems){
+  // cartItems: array of { id, qty } from State.cart
+  if(rule.scope === 'store') return cartItems.reduce((s, c) => {
+    const p = State.products[c.id];
+    return s + (p ? effPrice(p) * c.qty : 0);
+  }, 0);
+  if(rule.scope === 'category'){
+    return cartItems.reduce((s, c) => {
+      const p = State.products[c.id];
+      if(p && p.category === rule.category) return s + effPrice(p) * c.qty;
+      return s;
+    }, 0);
+  }
+  if(rule.scope === 'product' && Array.isArray(rule.productIds)){
+    return cartItems.reduce((s, c) => {
+      if(rule.productIds.includes(c.id)){
+        const p = State.products[c.id];
+        return s + (p ? effPrice(p) * c.qty : 0);
+      }
+      return s;
+    }, 0);
+  }
+  return 0;
+}
+
+function calcSpendDiscount(cartItems){
+  // Returns the best applicable spend-based discount amount in PKR
+  const rules = spendDiscountRules();
+  if(!rules.length || !cartItems.length) return 0;
+  let best = 0;
+  for(const rule of rules){
+    const qual = calcQualifyingAmount(rule, cartItems);
+    if(qual >= Number(rule.minSpend || 0)){
+      const d = Number(rule.discountAmount || 0);
+      if(d > best) best = d;
+    }
+  }
+  return best;
+}
+
+function calcSpendDiscountProgress(cartItems){
+  // Returns { remaining, minSpend, ruleName } for the best applicable rule
+  // that the customer hasn't yet qualified for. Returns null if none applicable.
+  const rules = spendDiscountRules();
+  if(!rules.length || !cartItems.length) return null;
+  let bestRule = null, bestQual = -1;
+  for(const rule of rules){
+    const qual = calcQualifyingAmount(rule, cartItems);
+    if(qual >= Number(rule.minSpend || 0)){
+      if(!bestRule || qual > bestQual){ bestRule = rule; bestQual = qual; }
+    }
+  }
+  if(bestRule) return null; // already qualifies for the best rule
+  // Find the rule closest to qualifying
+  let closest = null, closestGap = Infinity;
+  for(const rule of rules){
+    const qual = calcQualifyingAmount(rule, cartItems);
+    const gap = Number(rule.minSpend || 0) - qual;
+    if(gap > 0 && gap < closestGap){ closest = rule; closestGap = gap; }
+  }
+  if(closest && closestGap <= 5000){
+    return { remaining: Math.ceil(closestGap), minSpend: closest.minSpend, name: closest.name, discount: closest.discountAmount };
+  }
+  return null;
+}
+
+function spendDiscountLabel(rule){
+  return `Spend PKR ${Number(rule.minSpend).toLocaleString()} → Get PKR ${Number(rule.discountAmount).toLocaleString()} off`;
+}
+
+function cartHasSpendDiscountProgress(cartItems){
+  return calcSpendDiscountProgress(cartItems || State.cart) !== null;
+}
+function spendDiscountProgressText(cartItems){
+  const prog = calcSpendDiscountProgress(cartItems || State.cart);
+  if(!prog) return '';
+  return `Spend PKR ${prog.remaining.toLocaleString()} more to unlock PKR ${prog.discount.toLocaleString()} off`;
 }
 function saleTick(){
   const st = saleState();
@@ -854,7 +1049,9 @@ function CartDrawer(){
     <div class="p-5 border-t border-gray-100 space-y-2">
       <div class="flex justify-between text-sm"><span>Subtotal</span><span>${money(t.itemTotal)}</span></div>
       <div class="flex justify-between text-sm"><span>Shipping</span><span>${t.shipping===0?'Free':money(t.shipping)}</span></div>
-      ${t.discount>0? `<div class="flex justify-between text-sm text-green-600"><span>Discount</span><span>-${money(t.discount)}</span></div>`:''}
+      ${t.couponDiscount>0? `<div class="flex justify-between text-sm text-green-600"><span>Coupon Discount</span><span>-${money(t.couponDiscount)}</span></div>`:''}
+      ${t.spendDiscount>0? `<div class="flex justify-between text-sm text-green-600"><span>Spend Discount</span><span>-${money(t.spendDiscount)}</span></div>`:''}
+      ${cartHasSpendDiscountProgress()? `<p class="text-xs text-amber-600 font-medium">${spendDiscountProgressText()}</p>`:''}
       <div class="flex justify-between font-semibold text-base pt-2 border-t border-gray-100"><span>Total</span><span>${money(t.grand)}</span></div>
       <button onclick="window.goCheckout()" class="btn-primary w-full py-3.5 rounded-xl font-medium mt-3">Checkout</button>
     </div>` : ''}
@@ -1263,7 +1460,8 @@ function pageCheckout(){
             <div class="flex justify-between"><span>Item Total</span><span>${money(t.itemTotal)}</span></div>
             <div class="flex justify-between"><span>Shipping</span><span>${t.shipping===0?'Free':money(t.shipping)}</span></div>
             <div class="flex justify-between"><span>Tax</span><span>${money(t.tax)}</span></div>
-            ${t.discount>0? `<div class="flex justify-between text-green-600"><span>Discount (${State.appliedCoupon})</span><span>-${money(t.discount)}</span></div>`:''}
+            ${t.couponDiscount>0? `<div class="flex justify-between text-green-600"><span>Coupon (${State.appliedCoupon})</span><span>-${money(t.couponDiscount)}</span></div>`:''}
+            ${t.spendDiscount>0? `<div class="flex justify-between text-green-600"><span>Spend Discount</span><span>-${money(t.spendDiscount)}</span></div>`:''}
             <div class="flex justify-between font-semibold text-base pt-2 border-t border-gray-300/40"><span>Grand Total</span><span>${money(t.grand)}</span></div>
           </div>
         </div>
@@ -1300,6 +1498,8 @@ window.placeOrder = async function(form){
     items: State.cart.map(c => ({ id: c.id, name: State.products[c.id]?.name, price: State.products[c.id]?.price, qty: c.qty, opts: c.opts })),
     totals: t,
     coupon: State.appliedCoupon || null,
+    couponDiscount: t.couponDiscount || 0,
+    spendDiscount: t.spendDiscount || 0,
     status: 'Pending',
     createdAt: Date.now(),
     inventoryProcessed: false
@@ -1384,6 +1584,7 @@ function pageOrderConfirmation(orderId){
     <div class="bg-white border border-gray-100 rounded-2xl p-6 text-left space-y-3">
       <h3 class="font-medium mb-2">Order Summary</h3>
       ${order.items.map(it=>`<div class="text-sm"><div class="flex justify-between"><span>${escapeHtml(it.name)} x${it.qty}</span><span>${money(it.price*it.qty)}</span></div>${optsSummary(it.opts)?`<p class="text-xs text-gray-400">${optsSummary(it.opts)}</p>`:''}</div>`).join('')}
+      ${order.spendDiscount > 0 ? `<div class="flex justify-between text-sm text-green-600"><span>Spend Discount</span><span>-${money(order.spendDiscount)}</span></div>` : ''}
       <div class="border-t border-gray-100 pt-3 flex justify-between font-semibold"><span>Grand Total</span><span>${money(order.totals.grand)}</span></div>
       <p class="text-xs text-gray-400 pt-2">Shipping to: ${escapeHtml(order.customer.address)}, ${escapeHtml(order.customer.city)}, ${escapeHtml(order.customer.province)}, ${escapeHtml(order.customer.country)}</p>
       <p class="text-xs text-gray-400">Payment method: ${order.payment==='cod'?'Cash on Delivery':'Bank Transfer'}</p>
@@ -1439,6 +1640,8 @@ function trackOrderResultHtml(orderId){
     </div>` : '<p class="text-sm text-red-500 mb-6">This order has been cancelled.</p>'}
     <div class="space-y-2 border-t border-gray-100 pt-4">
       ${order.items.map(it=>`<div class="flex justify-between text-sm"><span>${escapeHtml(it.name)} x${it.qty}</span><span>${money(it.price*it.qty)}</span></div>`).join('')}
+      ${order.spendDiscount > 0 ? `<div class="flex justify-between text-sm text-green-600"><span>Spend Discount</span><span>-${money(order.spendDiscount)}</span></div>` : ''}
+      ${order.couponDiscount > 0 ? `<div class="flex justify-between text-sm text-green-600"><span>Coupon (${order.coupon || 'N/A'})</span><span>-${money(order.couponDiscount)}</span></div>` : ''}
       <div class="flex justify-between font-semibold text-base pt-2 border-t border-gray-100"><span>Grand Total</span><span>${money(order.totals.grand)}</span></div>
     </div>
   </div>`;
@@ -1468,7 +1671,7 @@ function pageProfile(){
             <span class="text-xs px-3 py-1 rounded-full bg-cream2 text-primary">${escapeHtml(o.status||'Pending')}</span>
           </div>
           <p class="text-xs text-gray-400 mb-2">${new Date(o.createdAt).toLocaleString()}</p>
-          <p class="text-sm text-gray-600">${o.items.length} item(s) &middot; <span class="font-semibold text-primary">${money(o.totals.grand)}</span></p>
+          <p class="text-sm text-gray-600">${o.items.length} item(s) &middot; <span class="font-semibold text-primary">${money(o.totals.grand)}</span>${o.spendDiscount > 0 ? ` <span class="text-green-600 text-xs">(-${money(o.spendDiscount)} spend discount)</span>` : ''}</p>
         </div>`).join('')}
     </div>`}
   </div>`;
@@ -1476,7 +1679,7 @@ function pageProfile(){
 
 /* ---------------- Admin Pages ---------------- */
 function adminNav(active){
-  const items = [['#admin','Dashboard'],['#admin/sale','Sale Event'],['#admin/product','Add Product'],['#admin/inventory','Inventory'],['#admin/orders','Orders'],['#admin/settings','Site Settings']];
+  const items = [['#admin','Dashboard'],['#admin/sale','Sale Event'],['#admin/discounts','Spend Discount'],['#admin/product','Add Product'],['#admin/inventory','Inventory'],['#admin/orders','Orders'],['#admin/settings','Site Settings']];
   return `<div class="flex gap-2 overflow-x-auto hide-scrollbar mb-8">
     ${items.map(([h,l])=>`<a href="${h}" class="shrink-0 px-5 py-2.5 rounded-full text-sm font-medium ${active===h? 'bg-primary text-white':'bg-cream2 text-ink'}">${l}</a>`).join('')}
   </div>`;
@@ -1868,6 +2071,8 @@ function pageAdminOrders(){
           <p class="text-sm text-gray-600">${escapeHtml(o.customer.name)} &middot; ${escapeHtml(o.customer.email)} &middot; ${escapeHtml(o.customer.phone)}</p>
           <p class="text-xs text-gray-400 mb-2">${escapeHtml(o.customer.address)}, ${escapeHtml(o.customer.city)}, ${escapeHtml(o.customer.province)}, ${escapeHtml(o.customer.country)}</p>
           <p class="text-sm">${o.items.map(it=>escapeHtml(it.name)+' x'+it.qty+(optsSummary(it.opts)?' ('+optsSummary(it.opts)+')':'')).join(', ')}</p>
+          ${o.spendDiscount > 0 ? `<p class="text-xs text-green-600">Spend discount: -${money(o.spendDiscount)}</p>` : ''}
+          ${o.couponDiscount > 0 ? `<p class="text-xs text-green-600">Coupon (${o.coupon || 'N/A'}): -${money(o.couponDiscount)}</p>` : ''}
           <p class="font-semibold text-primary mt-1">${money(o.totals.grand)}</p>
         </div>`).join('')}
     </div>
@@ -2046,6 +2251,244 @@ window.saveSaleEvent = async function(form){
   }
 };
 
+/* ---------------- Admin: Spend Discount Rules ---------------- */
+function pageAdminDiscounts(){
+  if(!requireAdmin()) return '';
+  const rules = spendDiscountRules();
+  const allRules = (State.settings?.spendDiscountRules) || [];
+  const inactiveRules = allRules.filter(r => !r.active);
+  return `
+  <div class="max-w-4xl mx-auto px-4 py-8 md:py-12">
+    <h1 class="font-serif text-2xl md:text-3xl mb-2">Spend-Based Discount Rules</h1>
+    <p class="text-sm text-gray-500 mb-6">Create rules that automatically apply a discount when a customer's cart reaches a spending threshold.</p>
+    ${adminNav('#admin/discounts')}
+    <div class="grid gap-6">
+      <!-- Create / Edit Rule Form -->
+      <form id="discount-rule-form" onsubmit="event.preventDefault(); window.saveDiscountRule(this)" class="bg-white border border-gray-100 rounded-2xl p-6 md:p-8 space-y-5">
+        <h3 class="font-medium text-lg" id="discount-form-title">New Discount Rule</h3>
+        <input type="hidden" name="ruleId" id="discount-rule-id" value="">
+        <div class="grid md:grid-cols-2 gap-5">
+          <div class="md:col-span-2">
+            <label class="text-sm font-medium block mb-1">Rule Name</label>
+            <input name="name" id="discount-rule-name" placeholder="e.g. Bulk Order Discount" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" required>
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-1">Minimum Spend (PKR)</label>
+            <input name="minSpend" id="discount-rule-min" type="number" min="1" step="1" placeholder="3000" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" required>
+            <p class="text-xs text-gray-400 mt-1">Customer must spend at least this amount to qualify.</p>
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-1">Discount Amount (PKR)</label>
+            <input name="discountAmount" id="discount-rule-discount" type="number" min="1" step="1" placeholder="500" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" required>
+            <p class="text-xs text-gray-400 mt-1">Flat PKR amount off the qualifying subtotal.</p>
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-sm font-medium block mb-2">Apply Discount To</label>
+            <div class="flex flex-wrap gap-4">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="scope" value="store" checked onchange="window.toggleDiscountScopeFields()"> Entire Store
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="scope" value="category" onchange="window.toggleDiscountScopeFields()"> Specific Category
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="scope" value="product" onchange="window.toggleDiscountScopeFields()"> Specific Product(s)
+              </label>
+            </div>
+          </div>
+          <div id="discount-category-field" class="hidden">
+            <label class="text-sm font-medium block mb-1">Category</label>
+            <select name="category" id="discount-rule-category" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+              ${CATEGORIES.filter(c=>c!=='Deals').map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+            </select>
+          </div>
+          <div id="discount-products-field" class="hidden md:col-span-2">
+            <label class="text-sm font-medium block mb-1">Select Products</label>
+            <div id="discount-product-list" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-3">
+              ${Object.entries(State.products).map(([id,p])=>`
+                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-cream2 rounded-lg px-3 py-1.5">
+                  <input type="checkbox" name="productIds" value="${id}" class="discount-product-cb"> ${escapeHtml(p.name)}
+                </label>`).join('') || '<p class="text-xs text-gray-400">No products available</p>'}
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm font-medium block mb-1">Start Date (optional)</label>
+              <input name="startDate" type="date" id="discount-rule-start" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+            </div>
+            <div>
+              <label class="text-sm font-medium block mb-1">Start Time (optional)</label>
+              <input name="startTime" type="time" id="discount-rule-start-time" value="00:00" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm font-medium block mb-1">End Date (optional)</label>
+              <input name="endDate" type="date" id="discount-rule-end" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+            </div>
+            <div>
+              <label class="text-sm font-medium block mb-1">End Time (optional)</label>
+              <input name="endTime" type="time" id="discount-rule-end-time" value="23:59" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="btn-primary px-8 py-3.5 rounded-xl font-medium" id="discount-form-btn">Create Rule</button>
+          <button type="button" onclick="window.resetDiscountForm()" class="border border-gray-200 px-6 py-3.5 rounded-xl text-sm font-medium" id="discount-form-cancel" style="display:none">Cancel Edit</button>
+        </div>
+      </form>
+
+      <!-- Active Rules List -->
+      <div class="bg-white border border-gray-100 rounded-2xl p-6">
+        <h3 class="font-medium text-lg mb-4">Active Rules</h3>
+        ${rules.length === 0 ? '<p class="text-sm text-gray-400">No active rules right now.</p>' : `
+        <div class="space-y-3">
+          ${rules.map(r => `
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-cream2 rounded-xl p-4">
+              <div>
+                <p class="font-medium text-sm">${escapeHtml(r.name)}</p>
+                <p class="text-xs text-gray-500 mt-0.5">${spendDiscountLabel(r)} &middot; ${r.scope==='store'?'Entire store':(r.scope==='category'?escapeHtml(r.category||''):r.productIds?.length+' product(s)')}</p>
+                ${r.startDate ? `<p class="text-[10px] text-gray-400 mt-0.5">${r.startDate} ${r.startTime||'00:00'} → ${r.endDate||''} ${r.endTime||'23:59'}</p>` : ''}
+              </div>
+              <div class="flex gap-2">
+                <button type="button" onclick="window.editDiscountRule('${r.id}')" class="text-xs border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-white transition">Edit</button>
+                <button type="button" onclick="window.toggleDiscountRule('${r.id}')" class="text-xs border border-red-200 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-50 transition">Deactivate</button>
+              </div>
+            </div>`).join('')}
+        </div>`}
+      </div>
+
+      ${inactiveRules.length > 0 ? `
+      <div class="bg-white border border-gray-100 rounded-2xl p-6">
+        <h3 class="font-medium text-lg mb-4 text-gray-400">Inactive Rules</h3>
+        <div class="space-y-3">
+          ${inactiveRules.map(r => `
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-gray-50 rounded-xl p-4 opacity-70">
+              <div>
+                <p class="font-medium text-sm text-gray-500">${escapeHtml(r.name)}</p>
+                <p class="text-xs text-gray-400 mt-0.5">${spendDiscountLabel(r)}</p>
+              </div>
+              <div class="flex gap-2">
+                <button type="button" onclick="window.editDiscountRule('${r.id}')" class="text-xs border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-white transition">Edit</button>
+                <button type="button" onclick="window.toggleDiscountRule('${r.id}')" class="text-xs border border-green-200 text-green-600 px-3 py-1.5 rounded-lg hover:bg-green-50 transition">Activate</button>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+window.toggleDiscountScopeFields = function(){
+  const scope = document.querySelector('input[name="scope"]:checked')?.value || 'store';
+  document.getElementById('discount-category-field').classList.toggle('hidden', scope !== 'category');
+  const prodField = document.getElementById('discount-products-field');
+  prodField.classList.toggle('hidden', scope !== 'product');
+};
+window.saveDiscountRule = async function(form){
+  if(!requireFirebase()) return;
+  const scope = form.scope.value;
+  // Validation
+  const minSpend = Number(form.minSpend.value);
+  const discountAmount = Number(form.discountAmount.value);
+  if(minSpend <= 0){ toast('Minimum spend must be greater than 0','err'); return; }
+  if(discountAmount <= 0){ toast('Discount amount must be greater than 0','err'); return; }
+  if(discountAmount >= minSpend){ toast('Discount amount must be less than the minimum spend','err'); return; }
+  if(scope === 'category' && !form.category.value){ toast('Please select a category','err'); return; }
+  if(scope === 'product'){
+    const checked = form.querySelectorAll('.discount-product-cb:checked');
+    if(checked.length === 0){ toast('Please select at least one product','err'); return; }
+  }
+
+  const btn = document.getElementById('discount-form-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try{
+    const ruleId = form.ruleId.value || doc(collection(db,'temp')).id;
+    const isEdit = !!form.ruleId.value;
+    const rule = {
+      id: ruleId,
+      name: form.name.value.trim(),
+      minSpend,
+      discountAmount,
+      scope,
+      category: scope === 'category' ? form.category.value : null,
+      productIds: scope === 'product' ? Array.from(form.querySelectorAll('.discount-product-cb:checked')).map(cb=>cb.value) : null,
+      active: true,
+      startDate: form.startDate.value || null,
+      startTime: form.startTime.value || null,
+      endDate: form.endDate.value || null,
+      endTime: form.endTime.value || null
+    };
+
+    const currentRules = Array.isArray(State.settings?.spendDiscountRules) ? [...State.settings.spendDiscountRules] : [];
+    if(isEdit){
+      const idx = currentRules.findIndex(r => r.id === ruleId);
+      if(idx >= 0) currentRules[idx] = rule;
+      else currentRules.push(rule);
+    } else {
+      currentRules.push(rule);
+    }
+
+    await withTimeout(setDoc(doc(db, 'settings', 'site'), { spendDiscountRules: currentRules }, { merge: true }), 15000, 'Saving discount rule');
+    toast(isEdit ? 'Rule updated!' : 'Rule created!');
+    window.resetDiscountForm();
+  }catch(err){
+    toast('Error saving rule: '+err.message,'err');
+  }finally{
+    btn.disabled = false; btn.textContent = isEdit ? 'Update Rule' : 'Create Rule';
+  }
+};
+window.editDiscountRule = function(id){
+  const rule = (State.settings?.spendDiscountRules || []).find(r => r.id === id);
+  if(!rule){ toast('Rule not found','err'); return; }
+  const form = document.getElementById('discount-rule-form');
+  form.ruleId.value = rule.id;
+  form.name.value = rule.name || '';
+  form.minSpend.value = rule.minSpend || '';
+  form.discountAmount.value = rule.discountAmount || '';
+  form.scope.value = rule.scope || 'store';
+  if(rule.scope === 'category') form.category.value = rule.category || '';
+  if(rule.scope === 'product' && rule.productIds){
+    form.querySelectorAll('.discount-product-cb').forEach(cb => {
+      cb.checked = rule.productIds.includes(cb.value);
+    });
+  }
+  form.startDate.value = rule.startDate || '';
+  form.startTime.value = rule.startTime || '00:00';
+  form.endDate.value = rule.endDate || '';
+  form.endTime.value = rule.endTime || '23:59';
+  document.getElementById('discount-form-title').textContent = 'Edit Discount Rule';
+  document.getElementById('discount-form-btn').textContent = 'Update Rule';
+  document.getElementById('discount-form-cancel').style.display = '';
+  window.toggleDiscountScopeFields();
+  form.scrollIntoView({ behavior:'smooth', block:'start' });
+};
+window.toggleDiscountRule = async function(id){
+  if(!requireFirebase()) return;
+  const currentRules = Array.isArray(State.settings?.spendDiscountRules) ? [...State.settings.spendDiscountRules] : [];
+  const rule = currentRules.find(r => r.id === id);
+  if(!rule) return;
+  rule.active = !rule.active;
+  try{
+    await withTimeout(setDoc(doc(db, 'settings', 'site'), { spendDiscountRules: currentRules }, { merge: true }), 15000, 'Updating rule');
+    toast(rule.active ? 'Rule activated' : 'Rule deactivated');
+  }catch(err){
+    toast('Error: '+err.message,'err');
+  }
+};
+window.resetDiscountForm = function(){
+  const form = document.getElementById('discount-rule-form');
+  form.reset();
+  form.ruleId.value = '';
+  document.getElementById('discount-form-title').textContent = 'New Discount Rule';
+  document.getElementById('discount-form-btn').textContent = 'Create Rule';
+  document.getElementById('discount-form-cancel').style.display = 'none';
+  document.getElementById('discount-category-field').classList.add('hidden');
+  document.getElementById('discount-products-field').classList.add('hidden');
+  // Reset scope to store
+  const storeRadio = form.querySelector('input[name="scope"][value="store"]');
+  if(storeRadio) storeRadio.checked = true;
+};
+
 /* ---------------- Footer ---------------- */
 function Footer(){
   return `
@@ -2108,6 +2551,7 @@ function doRender(){
     else if(route==='#track-order') body = pageTrackOrder(null);
     else if(route.startsWith('#admin/product/')) body = pageAdminProduct(route.split('/')[2]);
     else if(route==='#admin/sale') body = pageAdminSale();
+    else if(route==='#admin/discounts') body = pageAdminDiscounts();
     else if(route==='#admin/product') body = pageAdminProduct(null);
     else if(route==='#admin/inventory') body = pageAdminInventory();
     else if(route==='#admin/orders') body = pageAdminOrders();
@@ -2120,6 +2564,7 @@ function doRender(){
     else body = pageHome();
 
     root.innerHTML = `
+      ${saleTopBar()}
       ${Header()}
       ${MobileMenu()}
       <main class="page active min-h-[60vh]">${body}</main>
@@ -2128,6 +2573,7 @@ function doRender(){
       <div id="cart-drawer-root">${CartDrawer()}</div>
       ${SearchOverlay()}
     `;
+    positionHeaderForSaleBar();
   }catch(err){
     console.error('Render error:', err);
     root.innerHTML = `
