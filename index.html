@@ -91,7 +91,7 @@ import {
   createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile
 } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
 import {
-  getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot
+  getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, getDoc
 } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
 import {
   getStorage, ref as sRef, uploadString, getDownloadURL
@@ -407,10 +407,10 @@ function normalizeRoute(route){
   const map = {
     '#shopall': '#shop',
     '#jewelry': '#shop?cat=' + encodeURIComponent('Stainless Steel Jewelry'),
-    '#customized': '#shop?cat=' + encodeURIComponent('Customized Stuff'),
+    '#customized': '#shop?cat=' + encodeURIComponent('Wallet'),
     '#giftbaskets': '#shop?cat=' + encodeURIComponent('Customized Baskets'),
     '#bouquets': '#shop?cat=' + encodeURIComponent('Bouquets (Customizable)'),
-    '#customrings': '#shop?cat=' + encodeURIComponent('Custom Rings'),
+    '#customrings': '#shop?cat=' + encodeURIComponent('Ring'),
     '#deals': '#shop?cat=' + encodeURIComponent('Deals'),
     '#trackorder': '#track-order'
   };
@@ -529,18 +529,22 @@ function saleState(){
 function salePercent(){ return saleState()==='active' ? Number(saleConfig().discount||0) : 0; }
 function effPrice(p){
   const st = saleState();
-  if(st==='active'){
-    const d = Number(saleConfig().discount||0);
-    return Math.round(Number(p.price||0) * (1 - d/100));
+  const base = Number(p.price||0);
+  const itemDiscount = Number(p.discountPercent||0);
+  // Per-product discount takes precedence, then global sale discount
+  const discount = itemDiscount > 0 ? itemDiscount : (st==='active' ? Number(saleConfig().discount||0) : 0);
+  if(discount > 0){
+    return Math.round(base * (1 - discount/100));
   }
-  return Number(p.price||0);
+  return base;
 }
 function priceHtml(p, cls='text-primary font-semibold'){
   const orig = Number(p.price||0);
-  if(isDeal(p) && dealHasOriginalPrice(p)){
-    return `<span class="line-through-sale text-gray-400 text-xs mr-1.5">${money(p.originalPrice)}</span><span class="${cls}">${money(orig)}</span>`;
-  }
-  if(saleState()==='active' && salePercent()>0){
+  const itemDiscount = Number(p.discountPercent||0);
+  const st = saleState();
+  const saleDiscount = st==='active' ? Number(saleConfig().discount||0) : 0;
+  const hasDiscount = (isDeal(p) && dealHasOriginalPrice(p)) || itemDiscount > 0 || (saleDiscount > 0 && itemDiscount <= 0);
+  if(hasDiscount){
     return `<span class="line-through-sale text-gray-400 text-xs mr-1.5">${money(orig)}</span><span class="${cls}">${money(effPrice(p))}</span>`;
   }
   return `<span class="${cls}">${money(orig)}</span>`;
@@ -680,7 +684,7 @@ window.updateQty = updateQty;
 /* ---------------- Rendering ---------------- */
 function Header(){
   const isMobileOnly = '';
-  const cats = ['Jewellery','Customized Stuff','Gift Baskets','Bouquets'];
+  const cats = ['Jewellery','Wallet','Gift Baskets','Bouquets'];
   return `
   <header class="sticky top-0 z-40 bg-cream/95 backdrop-blur border-b border-[#E8DFD5]">
     <div class="max-w-7xl mx-auto px-4 md:px-8">
@@ -791,7 +795,7 @@ function SearchOverlay(){
 }
 window.doSearch = function(q){
   q = q.toLowerCase();
-  const all = Object.entries(State.products).filter(([id,p]) => p.name.toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q));
+  const all = Object.entries(State.products).filter(([id,p]) => Number(p.stock||0) > 0 && (p.name.toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q)));
   document.getElementById('search-results').innerHTML = all.map(([id,p])=>`
     <a href="#product/${id}" onclick="window.openSearch()" class="flex gap-3 items-center p-2 hover:bg-cream2 rounded-xl">
       <img src="${p.image||''}" class="w-14 h-14 object-cover rounded-lg bg-cream2">
@@ -886,8 +890,8 @@ window.goCheckout = function(){
 
 /* ---------------- Page: Home ---------------- */
 function pageHome(){
-  const featured = Object.entries(State.products).filter(([id,p])=>!isDeal(p)).slice(0,8);
-  const featuredDeals = Object.entries(State.products).filter(([id,p])=>isDeal(p) && p.featured);
+  const featured = Object.entries(State.products).filter(([id,p])=>!isDeal(p) && Number(p.stock||0) > 0).slice(0,8);
+  const featuredDeals = Object.entries(State.products).filter(([id,p])=>isDeal(p) && p.featured && Number(p.stock||0) > 0);
   const cats = CATEGORIES.map(name => ({ name, img: (State.settings.categoryImages && State.settings.categoryImages[name]) || '' }));
   return `
   <section class="relative bg-cream2 overflow-hidden">
@@ -942,6 +946,7 @@ function pageHome(){
     </div>
   </section>` : ''}
 
+  ${saleBanner()}
   <section class="bg-primary text-white py-14 mt-8">
     <div class="max-w-4xl mx-auto text-center px-4">
       <h2 class="font-serif text-2xl md:text-3xl mb-3">Custom Orders Welcome</h2>
@@ -965,14 +970,14 @@ function productCard(id,p){
     <div class="aspect-square overflow-hidden bg-cream2 relative">
       <img src="${p.image||'https://via.placeholder.com/400x400?text=Gbyrish'}" class="prod-img w-full h-full object-cover">
       ${Number(p.stock)<=0 ? '<span class="absolute top-2 left-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full">Sold Out</span>' : (isDeal(p) && p.badge ? dealBadgeHtml(p) : (Number(p.stock)<10 ? `<span class="absolute top-2 left-2 bg-amber-500 text-white text-[10px] px-2 py-1 rounded-full">Only ${p.stock} left</span>` : ''))}
-      ${isDeal(p) && dealDiscountPercent(p)>0 ? `<span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-semibold">-${dealDiscountPercent(p)}%</span>` : (saleState()==='active' && salePercent()>0 ? `<span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-semibold">-${salePercent()}%</span>` : '')}
+      ${isDeal(p) && dealDiscountPercent(p)>0 ? `<span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-semibold">-${dealDiscountPercent(p)}%</span>` : (Number(p.discountPercent||0)>0 ? `<span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-semibold">-${p.discountPercent}%</span>` : (saleState()==='active' && salePercent()>0 ? `<span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-semibold">-${salePercent()}%</span>` : ''))}
     </div>
     <div class="p-3 md:p-4">
       <p class="text-[10px] uppercase tracking-wide text-accentDark mb-1">${escapeHtml(p.category||'')}</p>
       <h3 class="font-medium text-sm md:text-base line-clamp-1 break-words">${escapeHtml(p.name)}</h3>
       ${isDeal(p) ? dealIncludedItemsHtml(p, false) : `<div class="flex items-center gap-1 my-1 text-xs text-amber-500">${starString(rating)} <span class="text-gray-400">(${(p.reviews?Object.keys(p.reviews).length:0)})</span></div>`}
       <p class="mt-1 leading-tight">${priceHtml(p)}</p>
-      ${isDeal(p) && dealSavings(p)>0 ? `<p class="text-[11px] text-green-600 font-medium mt-0.5">Save ${money(dealSavings(p))}</p>` : ''}
+      ${(isDeal(p) && dealSavings(p)>0) || Number(p.discountPercent||0)>0 ? `<p class="text-[11px] text-green-600 font-medium mt-0.5">Save ${money(Number(p.price||0) - effPrice(p))}</p>` : ''}
     </div>
   </a>`;
 }
@@ -999,7 +1004,7 @@ function pageShop(){
   const params = parseQuery(State.route);
   const activeCat = params.cat || 'All';
   const cats = ['All', ...CATEGORIES];
-  let list = Object.entries(State.products);
+  let list = Object.entries(State.products).filter(([id,p]) => Number(p.stock||0) > 0);
   if(activeCat!=='All') list = list.filter(([id,p]) => p.category===activeCat);
   return `
   <div class="max-w-7xl mx-auto px-4 md:px-8 py-5 md:py-12">
@@ -1055,7 +1060,7 @@ function pageProduct(id){
         ${isDeal(p) && p.badge ? `<span class="inline-block bg-accentDark text-white text-[10px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full mb-2">${escapeHtml(p.badge)}</span>` : ''}
         <h1 class="font-serif text-2xl md:text-4xl mb-3">${escapeHtml(p.name)}</h1>
         ${isDeal(p) ? '' : `<div class="flex items-center gap-2 mb-4 text-amber-500 text-sm">${starString(rating)} <span class="text-gray-400">(${reviews.length} review${reviews.length!==1?'s':''})</span></div>`}
-        <p class="text-2xl md:text-3xl font-semibold text-primary mb-1">${isDeal(p) && dealHasOriginalPrice(p) ? `<span class="line-through-sale text-gray-400 text-base md:text-xl font-normal mr-2">${money(p.originalPrice)}</span> ${money(p.price)}` : (saleState()==='active' && salePercent()>0 ? `<span class="line-through-sale text-gray-400 text-base md:text-xl font-normal mr-2">${money(p.price)}</span> ${money(effPrice(p))}` : money(p.price))}</p>
+        <p class="text-2xl md:text-3xl font-semibold text-primary mb-1">${isDeal(p) && dealHasOriginalPrice(p) ? `<span class="line-through-sale text-gray-400 text-base md:text-xl font-normal mr-2">${money(p.originalPrice)}</span> ${money(p.price)}` : (Number(p.discountPercent||0)>0 ? `<span class="line-through-sale text-gray-400 text-base md:text-xl font-normal mr-2">${money(p.price)}</span> ${money(effPrice(p))}` : (saleState()==='active' && salePercent()>0 ? `<span class="line-through-sale text-gray-400 text-base md:text-xl font-normal mr-2">${money(p.price)}</span> ${money(effPrice(p))}` : money(p.price)))}</p>
         ${isDeal(p) && dealSavings(p)>0 ? `<p class="text-sm text-green-600 font-medium mb-4">You save ${money(dealSavings(p))}</p>` : '<div class="mb-5"></div>'}
         <p class="text-gray-600 leading-relaxed mb-6">${escapeHtml(p.description||'')}</p>
         ${isDeal(p) ? dealIncludedItemsHtml(p, true) : ''}
@@ -1182,6 +1187,7 @@ window.submitReview = function(id, form){
   if(!requireFirebase()) return;
   const rating = document.getElementById('rating-value').value;
   const text = form.text.value;
+  if(!rating){ toast('Please select a star rating','err'); return; }
   const reviewId = doc(collection(db, 'products')).id;
   updateDoc(doc(db, 'products', id), {
     [`reviews.${reviewId}`]: {
@@ -1191,7 +1197,8 @@ window.submitReview = function(id, form){
       uid: State.user.uid,
       date: Date.now()
     }
-  }).then(()=>{ toast('Review submitted, thank you!'); form.reset(); });
+  }).then(()=>{ toast('Review submitted, thank you!'); form.reset(); })
+    .catch(err=>{ console.error('Review submit failed:', err); toast('Failed to submit review: ' + err.message, 'err'); });
 };
 
 /* ---------------- Page: Checkout ---------------- */
@@ -1272,6 +1279,9 @@ window.applyCoupon = function(){
 window.placeOrder = async function(form){
   if(!requireFirebase()) return;
   if(cartHasOutOfStock()){ toast('Cart has out-of-stock items. Please review your cart.','err'); return; }
+  // Prevent duplicate orders from double-clicks or retries
+  if(State._placingOrder){ toast('Order is already being processed...','err'); return; }
+  State._placingOrder = true;
   const btn = form.querySelector('button[type=submit], button:not([type])');
   if(btn){ btn.disabled = true; btn.textContent = 'Placing Order...'; }
   const t = cartTotals();
@@ -1291,27 +1301,49 @@ window.placeOrder = async function(form){
     totals: t,
     coupon: State.appliedCoupon || null,
     status: 'Pending',
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    inventoryProcessed: false
   };
+
+  // Step 1: Create the order in Firestore
   try{
     // Final stock re-validation right before committing the order
     for(const c of State.cart){
       const p = State.products[c.id];
       if(!p || Number(p.stock||0) < c.qty){
         toast(`${p ? p.name : 'An item'} no longer has enough stock`, 'err');
+        State._placingOrder = false;
         if(btn){ btn.disabled=false; btn.textContent = 'Place Order · ' + money(t.grand); }
         return;
       }
     }
-    await setDoc(doc(db, 'orders', orderId), order);
-    // Deduct purchased quantities from inventory
-    await Promise.all(order.items.map(it => {
-      const p = State.products[it.id];
-      const newStock = Math.max(0, Number(p?.stock||0) - it.qty);
-      return updateDoc(doc(db, 'products', it.id), { stock: newStock });
-    }));
-    // Queue a confirmation email — a Firebase Extension/Cloud Function (see 'sendOrderConfirmationEmail')
-    // listens on the 'mail' collection and delivers it via Nodemailer/SendGrid, then marks emailSent=true.
+    await withTimeout(setDoc(doc(db, 'orders', orderId), order), 20000, 'Creating order');
+  }catch(e){
+    console.error('Order creation failed:', e);
+    toast('Order failed: could not create order. Please try again.','err');
+    State._placingOrder = false;
+    if(btn){ btn.disabled=false; btn.textContent = 'Place Order · ' + money(t.grand); }
+    return;
+  }
+
+  // Step 2: Deduct purchased quantities from inventory (idempotent via inventoryProcessed flag)
+  try{
+    const orderSnap = await getDoc(doc(db, 'orders', orderId));
+    if(!orderSnap.exists() || !orderSnap.data().inventoryProcessed){
+      await Promise.all(order.items.map(it => {
+        const p = State.products[it.id];
+        const newStock = Math.max(0, Number(p?.stock||0) - it.qty);
+        return updateDoc(doc(db, 'products', it.id), { stock: newStock });
+      }));
+      await updateDoc(doc(db, 'orders', orderId), { inventoryProcessed: true });
+    }
+  }catch(e){
+    console.error('Inventory update failed (order was created):', e);
+    toast('Order placed but inventory update had an issue. Our team will review it.', 'warn');
+  }
+
+  // Step 3: Queue confirmation email (does not affect order success)
+  try{
     await addDoc(collection(db, 'mail'), {
       to: order.customer.email,
       orderId,
@@ -1321,11 +1353,17 @@ window.placeOrder = async function(form){
       createdAt: Date.now(),
       emailSent: false
     });
+  }catch(e){
+    console.error('Email queue failed (order was created):', e);
+    // Do NOT show an error to the customer — the order exists.
+  }
+
+  // Step 4: Clear cart and navigate to confirmation (always runs)
+  try {
     State.cart = []; State.appliedCoupon = null; saveCart();
     location.hash = '#order-confirmation/'+orderId;
-  }catch(e){
-    toast('Order failed: '+e.message,'err');
-    if(btn){ btn.disabled=false; btn.textContent = 'Place Order · ' + money(t.grand); }
+  } finally {
+    State._placingOrder = false;
   }
 };
 
@@ -1341,7 +1379,8 @@ function pageOrderConfirmation(orderId){
     <h1 class="font-serif text-3xl mb-2">Order Confirmed!</h1>
     <p class="text-gray-500 mb-1">Thank you, ${escapeHtml(order.customer.name)}. Your order has been placed.</p>
     <p class="text-lg font-semibold text-primary mb-2">Order ID: ${orderId}</p>
-    <p class="text-xs text-gray-400 mb-8">A confirmation email with this Order ID has been sent to ${escapeHtml(order.customer.email)}. You can track your order anytime using this ID.</p>
+    <span class="inline-block text-xs px-3 py-1.5 rounded-full bg-cream2 text-primary font-medium mb-6">${escapeHtml(order.status)}</span>
+    <p class="text-xs text-gray-400 mb-8">A confirmation email has been queued to ${escapeHtml(order.customer.email)}. You can track your order anytime using this ID.</p>
     <div class="bg-white border border-gray-100 rounded-2xl p-6 text-left space-y-3">
       <h3 class="font-medium mb-2">Order Summary</h3>
       ${order.items.map(it=>`<div class="text-sm"><div class="flex justify-between"><span>${escapeHtml(it.name)} x${it.qty}</span><span>${money(it.price*it.qty)}</span></div>${optsSummary(it.opts)?`<p class="text-xs text-gray-400">${optsSummary(it.opts)}</p>`:''}</div>`).join('')}
@@ -1373,7 +1412,8 @@ function pageTrackOrder(prefillId){
 }
 window.trackOrder = function(orderId){
   orderId = orderId.trim().toUpperCase();
-  document.getElementById('track-result').innerHTML = trackOrderResultHtml(orderId);
+  const el = document.getElementById('track-result');
+  if(el) el.innerHTML = trackOrderResultHtml(orderId);
 };
 function trackOrderResultHtml(orderId){
   const order = State.orders[orderId];
@@ -1598,6 +1638,11 @@ function pageAdminProduct(editId){
           <label class="text-sm font-medium block mb-1">Stock Quantity</label>
           <input name="stock" type="number" required min="0" value="${editing? editing.stock : 10}" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
         </div>
+        <div>
+          <label class="text-sm font-medium block mb-1">Item Discount (%)</label>
+          <input name="discountPercent" type="number" min="0" max="95" value="${editing? (editing.discountPercent||0) : 0}" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+          <p class="text-xs text-gray-400 mt-1">Leave at 0 for no discount. This takes priority over the global sale for this item.</p>
+        </div>
         <div class="flex items-center gap-2 mt-6">
           <input type="checkbox" name="customizable" id="customizable" ${editing?.customizable?'checked':''} class="w-5 h-5">
           <label for="customizable" class="text-sm">Allow customization note</label>
@@ -1731,7 +1776,8 @@ window.saveProduct = async function(form, editId){
       originalPrice: (isDealCategory && originalPriceRaw) ? Number(originalPriceRaw) : null,
       includedItems: (includedItems && includedItems.length) ? includedItems : null,
       badge: isDealCategory ? (data.get('badge') || null) : null,
-      featured: isDealCategory ? !!data.get('featured') : false
+      featured: isDealCategory ? !!data.get('featured') : false,
+      discountPercent: Number(data.get('discountPercent')||0)
     };
     await withTimeout(setDoc(doc(db, 'products', id), product), 20000, 'Saving product');
     pendingImages = [];
@@ -1789,12 +1835,18 @@ window.updateStock = function(id, val){
     if(n<=0) toast('Stock updated — product is now out of stock','err');
     else if(n<10) toast('Stock updated — low stock warning (' + n + ' left)');
     else toast('Stock updated');
+  }).catch(err=>{
+    console.error('Stock update failed:', err);
+    toast('Failed to update stock: ' + err.message, 'err');
   });
 };
 window.deleteProduct = function(id){
   if(!requireFirebase()) return;
   if(!confirm('Delete this product permanently?')) return;
-  deleteDoc(doc(db, 'products', id)).then(()=>toast('Product deleted'));
+  deleteDoc(doc(db, 'products', id)).then(()=>toast('Product deleted')).catch(err=>{
+    console.error('Delete failed:', err);
+    toast('Failed to delete product: ' + err.message, 'err');
+  });
 };
 
 function pageAdminOrders(){
@@ -1814,7 +1866,7 @@ function pageAdminOrders(){
             </select>
           </div>
           <p class="text-sm text-gray-600">${escapeHtml(o.customer.name)} &middot; ${escapeHtml(o.customer.email)} &middot; ${escapeHtml(o.customer.phone)}</p>
-          <p class="text-xs text-gray-400 mb-2">${escapeHtml(o.customer.address)}, ${escapeHtml(o.customer.city)}, ${escapeHtml(o.customer.country)}</p>
+          <p class="text-xs text-gray-400 mb-2">${escapeHtml(o.customer.address)}, ${escapeHtml(o.customer.city)}, ${escapeHtml(o.customer.province)}, ${escapeHtml(o.customer.country)}</p>
           <p class="text-sm">${o.items.map(it=>escapeHtml(it.name)+' x'+it.qty+(optsSummary(it.opts)?' ('+optsSummary(it.opts)+')':'')).join(', ')}</p>
           <p class="font-semibold text-primary mt-1">${money(o.totals.grand)}</p>
         </div>`).join('')}
@@ -1823,7 +1875,10 @@ function pageAdminOrders(){
 }
 window.updateOrderStatus = function(id, status){
   if(!requireFirebase()) return;
-  updateDoc(doc(db, 'orders', id), { status }).then(()=>toast('Order status updated'));
+  updateDoc(doc(db, 'orders', id), { status }).then(()=>toast('Order status updated')).catch(err=>{
+    console.error('Status update failed:', err);
+    toast('Failed to update status: ' + err.message, 'err');
+  });
 };
 
 function pageAdminSettings(){
@@ -2005,7 +2060,7 @@ function Footer(){
         <h4 class="font-medium mb-3">Shop</h4>
         <div class="flex flex-col gap-2 text-sm text-gray-500">
           <a href="#jewelry" class="hover:text-primary">Jewellery</a>
-          <a href="#customized" class="hover:text-primary">Customized Stuff</a>
+          <a href="#customized" class="hover:text-primary">Wallet</a>
           <a href="#giftbaskets" class="hover:text-primary">Gift Baskets</a>
           <a href="#bouquets" class="hover:text-primary">Bouquets</a>
           <a href="#customrings" class="hover:text-primary">Ring</a>
