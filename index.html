@@ -72,7 +72,7 @@ tailwind.config = {
   @media (max-width:767px){
     body{padding-bottom:64px;}
     .product-grid{grid-template-columns:repeat(2,1fr) !important;gap:10px !important;}
-    .product-grid .product-card{pborder-radius:12px;}
+    .product-grid .product-card{border-radius:12px;}
     .checkout-grid{grid-template-columns:1fr !important;gap:16px !important;}
     .admin-grid{grid-template-columns:1fr !important;}
     .admin-form{max-width:100% !important;margin:0 !important;}
@@ -1716,7 +1716,10 @@ function pageOrderConfirmation(orderId){
     <p class="text-gray-500 mb-1">Thank you, ${escapeHtml(order.customer.name)}. Your order has been placed.</p>
     <p class="text-lg font-semibold text-primary mb-2">Order ID: ${orderId}</p>
     <span class="inline-block text-xs px-3 py-1.5 rounded-full bg-cream2 text-primary font-medium mb-6">${escapeHtml(order.status)}</span>
-    <p class="text-xs text-gray-400 mb-8">A confirmation email has been queued to ${escapeHtml(order.customer.email)}. You can track your order anytime using this ID.</p>
+    <p class="text-xs text-gray-500 mb-8">Save this order number &mdash; you will need it to track or cancel your order.</p>
+    <div class="flex justify-center mb-6">
+      <button onclick="window.saveOrderNumber('${orderId}')" class="text-sm border border-primary text-primary px-6 py-2.5 rounded-full font-medium hover:bg-primary hover:text-white transition">Save Order Number</button>
+    </div>
     <div class="bg-white border border-gray-100 rounded-2xl p-6 text-left space-y-3">
       <h3 class="font-medium mb-2">Order Summary</h3>
       ${order.items.map(it=>`<div class="text-sm"><div class="flex justify-between"><span>${escapeHtml(it.name)} x${it.qty}</span><span>${money(it.price*it.qty)}</span></div>${optsSummary(it.opts)?`<p class="text-xs text-gray-400">${optsSummary(it.opts)}</p>`:''}</div>`).join('')}
@@ -1728,9 +1731,17 @@ function pageOrderConfirmation(orderId){
       <p class="text-xs text-gray-400 pt-2">Shipping to: ${escapeHtml(order.customer.address)}, ${escapeHtml(order.customer.city)}, ${escapeHtml(order.customer.province)}, ${escapeHtml(order.customer.country)}</p>
       <p class="text-xs text-gray-400">Payment method: ${order.payment==='cod'?'Cash on Delivery':'Bank Transfer'}</p>
     </div>
-    <div class="flex flex-col sm:flex-row gap-3 justify-center mt-8">
+    <div class="flex flex-col sm:flex-row gap-3 justify-center mt-4">
       <a href="#trackorder/${orderId}" class="border border-primary text-primary px-8 py-3.5 rounded-full font-medium">Track This Order</a>
       <a href="#shopall" class="btn-primary px-8 py-3.5 rounded-full font-medium">Continue Shopping</a>
+    </div>
+    <div class="mt-10 p-5 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-left">
+      <h3 class="font-medium text-amber-800 mb-2">Need to cancel this order?</h3>
+      <p class="text-amber-700 text-xs mb-3">To cancel order <strong>${orderId}</strong>, message us on Instagram with your order ID. We will process your cancellation request as soon as possible.</p>
+      <a href="https://www.instagram.com/gbyrish/" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-xs font-medium text-white bg-[#E1306C] px-4 py-2 rounded-full hover:opacity-90 transition">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+        Message gbyrish on Instagram
+      </a>
     </div>
   </div>`;
 }
@@ -1750,6 +1761,16 @@ function pageTrackOrder(prefillId){
     <div id="track-result">${prefillId ? trackOrderResultHtml(prefillId) : ''}</div>
   </div>`;
 }
+window.saveOrderNumber = function(orderId){
+  const text = 'Order ID: ' + orderId + '\nSave this to track or cancel your order.';
+  if(navigator.share){
+    navigator.share({ title: 'Gbyrish Order', text }).catch(()=>{});
+  } else if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(()=>toast('Order number copied!')).catch(()=>toast(text));
+  } else {
+    toast(text);
+  }
+};
 window.trackOrder = function(orderId){
   orderId = orderId.trim().toUpperCase();
   const el = document.getElementById('track-result');
@@ -1809,7 +1830,7 @@ function pageProfile(){
       ${myOrders.map(([id,o])=>`
         <div class="bg-white border border-gray-100 rounded-2xl p-5">
           <div class="flex justify-between items-center mb-2">
-            <span class="font-medium">${id}</span>
+            <span class="font-medium">${o.orderId || id}</span>
             <span class="text-xs px-3 py-1 rounded-full bg-cream2 text-primary">${escapeHtml(o.status||'Pending')}</span>
           </div>
           <p class="text-xs text-gray-400 mb-2">${new Date(o.createdAt).toLocaleString()}</p>
@@ -2248,17 +2269,25 @@ window.updateOrderStatus = function(id, status){
 };
 window.deleteOrder = function(id){
   if(!requireFirebase()) return;
-  if(!confirm('Move order to Recycle Bin? You can restore it later.')) return;
   const order = State.orders[id];
-  if(!order) return;
+  if(!order){
+    toast('Order not found','err'); return;
+  }
+  // Try recycle bin first; if Firestore rules block it, fall back to permanent delete
+  const proceed = confirm('Move order #' + (order.orderId || id) + ' to Recycle Bin?\n\nIf the recycle bin is unavailable, the order will be permanently deleted.');
+  if(!proceed) return;
   setDoc(doc(db, 'orders_trash', id), { ...order, deletedAt: Date.now() }).then(()=>{
-    deleteDoc(doc(db, 'orders', id)).then(()=>toast('Moved to Recycle Bin')).catch(err=>{
-      console.error('Move to trash failed:', err);
-      toast('Failed: ' + err.message, 'err');
-    });
+    return deleteDoc(doc(db, 'orders', id));
+  }).then(()=>{
+    toast('Order moved to Recycle Bin');
   }).catch(err=>{
-    console.error('Trash save failed:', err);
-    toast('Failed: ' + err.message, 'err');
+    console.error('Recycle bin failed, trying permanent delete:', err);
+    // Fallback: permanently delete if trash collection is blocked by rules
+    if(confirm('Could not move to Recycle Bin (permission error).\n\nDelete this order PERMANENTLY instead? This cannot be undone.')){
+      deleteDoc(doc(db, 'orders', id)).then(()=>toast('Order permanently deleted')).catch(e=>{
+        toast('Delete failed: ' + e.message, 'err');
+      });
+    }
   });
 };
 window.restoreOrder = function(id){
