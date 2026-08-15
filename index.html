@@ -612,6 +612,21 @@ function removeFromCart(idx){
   State.cart.splice(idx,1); saveCart(); refreshCartUI();
   toast('Item removed');
 }
+window.clearCart = function(){
+  if(State.cart.length === 0) return;
+  if(!confirm('Remove all items from your cart?')) return;
+  State.cart = []; State.appliedCoupon = null; saveCart(); refreshCartUI();
+  toast('Cart cleared');
+};
+window.saveForLater = function(idx){
+  if(!State.user){ toast('Sign in to save items','err'); openAuthModal(); return; }
+  const item = State.cart[idx];
+  if(!item) return;
+  const widx = State.wishlist.indexOf(item.id);
+  if(widx < 0){ State.wishlist.push(item.id); saveWishlist(); }
+  State.cart.splice(idx, 1); saveCart(); refreshCartUI();
+  toast('Saved for later!');
+};
 function updateQty(idx, delta){
   const c = State.cart[idx];
   if(!c){ console.warn('updateQty: stale index', idx); return; }
@@ -1116,6 +1131,37 @@ window.switchAuthTab = function(tab){
   }
 };
 window.closeModalFn = closeModal;
+window.openQuickView = function(id){
+  const p = State.products[id];
+  if(!p) return;
+  const images = p.images && p.images.length ? p.images : [p.image];
+  const rating = avgRating(p);
+  const reviews = p.reviews ? Object.entries(p.reviews) : [];
+  document.getElementById('modal-root').innerHTML = `
+  <div class="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4" onclick="if(event.target===this) window.closeModalFn()">
+    <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto relative shadow-2xl" onclick="event.stopPropagation()">
+      <button onclick="window.closeModalFn()" class="absolute top-4 right-4 text-gray-400 hover:text-ink text-2xl z-10 bg-white/80 rounded-full w-8 h-8 flex items-center justify-center">&times;</button>
+      <div class="grid md:grid-cols-2">
+        <div class="aspect-square bg-cream2">
+          <img src="${images[0]||''}" onerror="this.src='https://via.placeholder.com/600x600?text=Gbyrish'" class="w-full h-full object-cover rounded-t-2xl md:rounded-l-2xl md:rounded-tr-none">
+        </div>
+        <div class="p-6">
+          <p class="text-xs uppercase tracking-widest text-accentDark mb-1">${escapeHtml(p.category||'')}</p>
+          <h2 class="font-serif text-xl md:text-2xl mb-2">${escapeHtml(p.name)}</h2>
+          <div class="flex items-center gap-1 mb-2 text-amber-500 text-sm">${starString(rating)} <span class="text-gray-400 text-xs">(${reviews.length} review${reviews.length!==1?'s':''})</span></div>
+          <p class="text-2xl font-semibold text-primary mb-4">${isDeal(p) && dealHasOriginalPrice(p) ? `<span class="line-through-sale text-gray-400 text-base font-normal mr-2">${money(p.originalPrice)}</span> ${money(p.price)}` : (Number(p.discountPercent||0)>0 ? `<span class="line-through-sale text-gray-400 text-base font-normal mr-2">${money(p.price)}</span> ${money(effPrice(p))}` : money(p.price))}</p>
+          <p class="text-gray-600 text-sm leading-relaxed mb-4">${escapeHtml(p.description||'')}</p>
+          <p class="text-sm mb-4 ${Number(p.stock)<=0 ? 'text-red-500' : (Number(p.stock)<10 ? 'text-amber-600 font-medium' : 'text-green-600')}">${Number(p.stock)<=0 ? 'Out of Stock' : (Number(p.stock)<10 ? 'Only ' + p.stock + ' left' : 'In Stock')}</p>
+          <div class="flex gap-2">
+            <a href="#product/${id}" onclick="window.closeModalFn()" class="btn-accent flex-1 py-3 rounded-xl font-medium text-sm text-center">View Details</a>
+            ${Number(p.stock)>0 ? `<button onclick="window.addToCartFromDetail('${id}'); window.closeModalFn()" class="btn-primary flex-1 py-3 rounded-xl font-medium text-sm">Add to Cart</button>` : ''}
+          </div>
+          ${Number(p.stock)<=0 ? `<div class="mt-3 p-3 bg-cream2 rounded-xl"><form onsubmit="event.preventDefault(); window.notifyMe('${id}', this.email.value)" class="flex gap-2"><input type="email" name="email" required placeholder="Your email" class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"><button class="btn-primary px-4 py-2 rounded-lg text-sm font-medium">Notify Me</button></form></div>` : ''}
+        </div>
+      </div>
+    </div>
+  </div>`;
+};
 window.doGoogleLogin = doGoogleLogin;
 window.doEmailLogin = doEmailLogin;
 window.doEmailSignup = doEmailSignup;
@@ -1287,6 +1333,7 @@ function CartDrawer(){
           <button onclick="window.updateQty(${idx},-1)" class="w-7 h-7 border rounded-full flex items-center justify-center text-xs">-</button>
           <span class="text-sm w-5 text-center">${c.qty}</span>
           <button onclick="window.updateQty(${idx},1)" class="w-7 h-7 border rounded-full flex items-center justify-center text-xs">+</button>
+          ${State.user ? `<button onclick="window.saveForLater(${idx})" class="text-xs text-primary underline ml-1" title="Save for later">Later</button>` : ''}
           <button onclick="window.removeFromCart(${idx})" class="ml-auto text-xs text-red-400 underline">Remove</button>
         </div>
       </div>
@@ -1302,6 +1349,7 @@ function CartDrawer(){
     <div class="flex-1 overflow-y-auto p-5">
       ${State.cart.length===0 ? '<p class="text-center text-gray-400 mt-16">Your cart is empty</p><a href="#shopall" onclick="window.toggleCart()" class="block text-center text-primary text-sm mt-3 underline">Continue Shopping</a>' : `<div class="space-y-4">${items}</div>`}
     </div>
+    ${State.cart.length>0 ? `<div class="px-5 pb-2"><button onclick="window.clearCart()" class="text-xs text-red-400 hover:text-red-600 underline">Clear Cart</button></div>` : ''}
     ${State.cart.length>0 ? `
     <div class="p-5 border-t border-gray-100 space-y-2">
       <div class="flex justify-between text-sm"><span>Items</span><span>${money(t.itemTotal)}</span></div>
@@ -1471,6 +1519,9 @@ function productCard(id,p){
     </a>
     ${State.user ? `<button onclick="window.toggleWishlist('${id}', event)" class="absolute top-2 left-2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-lg hover:bg-white transition" title="${wished?'Remove from wishlist':'Add to wishlist'}">${wished?'&#9829;':'&#9825;'}</button>` : ''}
     ${Number(p.stock)<=0 ? `<a href="#product/${id}" class="absolute bottom-2 left-2 right-2 bg-white/90 text-primary text-xs font-medium py-2 rounded-lg hover:bg-white transition text-center block">Notify Me When Available</a>` : ''}
+    <button onclick="event.preventDefault(); event.stopPropagation(); window.openQuickView('${id}')" class="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20" title="Quick View">
+      <span class="bg-white text-ink text-xs font-medium px-4 py-2 rounded-full shadow-lg">Quick View</span>
+    </button>
   </div>`;
 }
 function avgRating(p){
