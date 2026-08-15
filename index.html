@@ -79,6 +79,24 @@ tailwind.config = {
   .navlink:hover::after{width:100%;}
   .bnav-item.active { color:#8B6F4E; }
   .bnav-item.active svg { stroke:#8B6F4E; }
+  /* ===== Dark Mode ===== */
+  .dark { color-scheme: dark; }
+  .dark body, body.dark { background:#0F0F0F; color:#E5E5E5; }
+  .dark header, header.dark { background:rgba(15,15,15,.95); border-color:#222; }
+  .dark .bg-cream, .dark .bg-cream2 { background:#1A1A1A !important; }
+  .dark .bg-white { background:#1A1A1A !important; }
+  .dark .border-gray-100, .dark .border-gray-200, .dark .border-gray-300 { border-color:#2A2A2A !important; }
+  .dark .text-ink, .dark .text-gray-900, .dark .text-gray-800, .dark .text-gray-700, .dark .text-gray-600 { color:#E5E5E5 !important; }
+  .dark .text-gray-500, .dark .text-gray-400 { color:#888 !important; }
+  .dark .bg-red-50 { background:#2A1010 !important; }
+  .dark .bg-green-50 { background:#0D2818 !important; }
+  .dark .bg-amber-50 { background:#2A2008 !important; }
+  .dark .bg-amber-100 { background:#2A2008 !important; }
+  .dark .bg-blue-100 { background:#0D1A2A !important; }
+  .dark input, .dark textarea, .dark select { background:#1A1A1A !important; border-color:#333 !important; color:#E5E5E5 !important; }
+  .dark .bnav-item { background:#1A1A1A !important; }
+  .dark .shadow-sm { box-shadow:0 1px 2px rgba(0,0,0,.5) !important; }
+  .dark #lightbox { background:rgba(0,0,0,.95); }
   /* ===== Responsive breakpoints ===== */
   @media (max-width:767px){
     body{padding-bottom:64px;}
@@ -306,6 +324,11 @@ window.toggleWishlist = function(id, e){
 };
 window.isInWishlist = function(id){ return State.wishlist.includes(id); };
 function money(n){ return 'Rs. ' + Number(n||0).toLocaleString('en-PK', {maximumFractionDigits:0}); }
+function getEstimatedDelivery(){
+  const d = new Date();
+  d.setDate(d.getDate() + 5 + Math.floor(Math.random()*3));
+  return d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+}
 function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function toast(msg, type='ok'){
   const c = document.getElementById('toast-container');
@@ -1130,6 +1153,9 @@ function Header(){
           <button onclick="window.openSearch()" class="p-2 hover:text-primary" title="Search">
             <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="7"/><path d="M14.5 14.5L19 19"/></svg>
           </button>
+          <button onclick="window.toggleDarkMode()" class="p-2 hover:text-primary" title="Toggle dark mode" id="dark-mode-btn">
+            <svg id="dark-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
           <button onclick="window.toggleAccount()" class="hidden md:block p-2 hover:text-primary relative">
             ${State.user ? `<img src="${State.user.photoURL || 'https://api.dicebear.com/7.x/initials/svg?seed='+encodeURIComponent(State.user.email)}" onerror="this.style.display='none'" class="w-7 h-7 rounded-full object-cover border border-primary">` :
             `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="7" r="4"/><path d="M2 19c1.5-4 6-5 8-5s6.5 1 8 5"/></svg>`}
@@ -1444,6 +1470,7 @@ function productCard(id,p){
       </div>
     </a>
     ${State.user ? `<button onclick="window.toggleWishlist('${id}', event)" class="absolute top-2 left-2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-lg hover:bg-white transition" title="${wished?'Remove from wishlist':'Add to wishlist'}">${wished?'&#9829;':'&#9825;'}</button>` : ''}
+    ${Number(p.stock)<=0 ? `<a href="#product/${id}" class="absolute bottom-2 left-2 right-2 bg-white/90 text-primary text-xs font-medium py-2 rounded-lg hover:bg-white transition text-center block">Notify Me When Available</a>` : ''}
   </div>`;
 }
 function avgRating(p){
@@ -1499,6 +1526,12 @@ function pageShop(){
         </div>
         <button onclick="document.getElementById('price-min').value='';document.getElementById('price-max').value='';window.filterShopPrice()" class="text-xs text-primary mt-2 hover:underline">Clear filter</button>
       </aside>
+      <!-- Mobile price filter -->
+      <div class="md:hidden flex gap-2 items-center mb-3">
+        <input id="price-min-m" type="number" placeholder="Min" min="0" class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" oninput="window.filterShopPriceMobile()">
+        <span class="text-gray-400 text-xs">to</span>
+        <input id="price-max-m" type="number" placeholder="Max" min="0" class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" oninput="window.filterShopPriceMobile()">
+      </div>
       <div class="flex-1">
         <div class="flex md:hidden gap-1.5 overflow-x-auto hide-scrollbar pb-3 mb-1">
           ${cats.map(c=>`<a href="${c==='All'?'#shopall':(CAT_HASH[c]||'#shop?cat='+encodeURIComponent(c))}" class="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium border ${activeCat===c ? 'bg-primary text-white border-primary' : 'border-gray-200'}">${c}</a>`).join('')}
@@ -1561,6 +1594,7 @@ function pageProduct(id){
             <button onclick="window.changeDetailQty(1)" class="w-11 h-11">+</button>
           </div>
           <button ${Number(p.stock)<=0?'disabled':''} onclick="window.addToCartFromDetail('${id}')" class="btn-accent flex-1 py-3.5 rounded-xl font-medium disabled:opacity-40">${isCustomizableCategory(p.category)?'Customize &amp; Add to Cart':'Add to Cart'}</button>
+          ${State.user ? `<button onclick="window.toggleWishlist('${id}', event)" class="w-11 h-11 border rounded-xl flex items-center justify-center hover:bg-cream2 transition text-lg" title="Wishlist">${State.wishlist.includes(id)?'&#9829;':'&#9825;'}</button>` : ''}
           <button onclick="window.shareProduct('${id}')" class="w-11 h-11 border rounded-xl flex items-center justify-center hover:bg-cream2 transition" title="Share">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 10l6-4M6 6l6 4"/></svg>
           </button>
@@ -2021,6 +2055,7 @@ function pageOrderConfirmation(orderId){
       <div class="border-t border-gray-100 pt-3 flex justify-between font-semibold"><span>Grand Total</span><span>${money(order.totals.grand)}</span></div>
       <p class="text-xs text-gray-400 pt-2">Shipping to: ${escapeHtml(order.customer.address)}, ${escapeHtml(order.customer.city)}, ${escapeHtml(order.customer.province)}, ${escapeHtml(order.customer.country)}</p>
       <p class="text-xs text-gray-400">Payment method: ${order.payment==='cod'?'Cash on Delivery':'Bank Transfer'}</p>
+      <p class="text-xs text-gray-400 flex items-center gap-1"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" class="inline"><path d="M1 4l6 4 6-8 4 3H1z"/></svg>Estimated delivery: <strong>${getEstimatedDelivery()}</strong></p>
     </div>
     <div class="flex flex-col sm:flex-row gap-3 justify-center mt-4">
       <a href="#trackorder/${orderId}" class="border border-primary text-primary px-8 py-3.5 rounded-full font-medium">Track This Order</a>
@@ -3241,8 +3276,8 @@ window.sortShopProducts = function(sortBy){
     const pB = idB ? State.products[idB] : null;
     if(!pA || !pB) return 0;
     switch(sortBy){
-      case 'price-asc': return (pA.price||0) - (pB.price||0);
-      case 'price-desc': return (pB.price||0) - (pA.price||0);
+      case 'price-asc': return effPrice(pA) - effPrice(pB);
+      case 'price-desc': return effPrice(pB) - effPrice(pA);
       case 'name': return (pA.name||'').localeCompare(pB.name||'');
       case 'rating': return avgRating(pB) - avgRating(pA);
       default: return 0;
@@ -3253,14 +3288,22 @@ window.sortShopProducts = function(sortBy){
 window.filterShopPrice = function(){
   const min = parseFloat(document.getElementById('price-min')?.value);
   const max = parseFloat(document.getElementById('price-max')?.value);
-  const grid = document.querySelector('.grid.grid-cols-2.md\\:grid-cols-3');
+  window._applyPriceFilter('.grid.grid-cols-2.md\\:grid-cols-3', min, max);
+};
+window.filterShopPriceMobile = function(){
+  const min = parseFloat(document.getElementById('price-min-m')?.value);
+  const max = parseFloat(document.getElementById('price-max-m')?.value);
+  window._applyPriceFilter('.grid.grid-cols-2.md\\:grid-cols-3', min, max);
+};
+window._applyPriceFilter = function(gridSelector, min, max){
+  const grid = document.querySelector(gridSelector);
   if(!grid) return;
   const cards = Array.from(grid.children);
   cards.forEach(c => {
     const id = c.querySelector('a')?.href?.split('product/')[1];
     const p = id ? State.products[id] : null;
     if(!p){ c.style.display = 'none'; return; }
-    const price = p.price || 0;
+    const price = effPrice(p);
     const show = (isNaN(min) || price >= min) && (isNaN(max) || price <= max);
     c.style.display = show ? '' : 'none';
   });
@@ -3378,6 +3421,7 @@ function doRender(){
       </div>
     `;
     positionHeaderForSaleBar();
+    if(typeof window.updateDarkIcon === 'function') window.updateDarkIcon(document.documentElement.classList.contains('dark'));
     if(route === '#admin/discounts'){
       setTimeout(() => { if(typeof window.populateDiscountProductLists === 'function') window.populateDiscountProductLists(); }, 50);
     }
@@ -3404,6 +3448,28 @@ window.addEventListener('scroll', ()=>{
   if(window.scrollY > 400) { btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
   else { btn.style.opacity = '0'; btn.style.pointerEvents = 'none'; }
 }, { passive: true });
+
+// Dark Mode
+window.toggleDarkMode = function(){
+  document.documentElement.classList.toggle('dark');
+  const isDark = document.documentElement.classList.contains('dark');
+  localStorage.setItem('gbyrish_dark', isDark ? '1' : '0');
+  window.updateDarkIcon(isDark);
+};
+window.updateDarkIcon = function(isDark){
+  const icon = document.getElementById('dark-icon');
+  if(!icon) return;
+  if(isDark){
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
+  } else {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  }
+};
+// Apply saved dark mode on load
+(function(){
+  const saved = localStorage.getItem('gbyrish_dark');
+  if(saved === '1'){ document.documentElement.classList.add('dark'); }
+})();
 
 // Keyboard shortcuts
 window.addEventListener('keydown', (e) => {
