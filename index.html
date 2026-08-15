@@ -2122,6 +2122,10 @@ function pageOrderConfirmation(orderId){
     <div class="flex flex-col sm:flex-row gap-3 justify-center mt-4">
       <a href="#trackorder/${orderId}" class="border border-primary text-primary px-8 py-3.5 rounded-full font-medium">Track This Order</a>
       <a href="#shopall" class="btn-primary px-8 py-3.5 rounded-full font-medium">Continue Shopping</a>
+      <button onclick="window.printOrder('${orderId}')" class="border border-gray-300 text-gray-600 px-8 py-3.5 rounded-full font-medium hover:bg-gray-50 transition flex items-center gap-2 mx-auto sm:mx-0">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h8v7M6 9H3v7h13V9M6 9h7M3 7h13M6 16H3v-4h3M13 16h3v-4h-3"/></svg>
+        Print Invoice
+      </button>
     </div>
     <div class="mt-10 p-5 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-left">
       <h3 class="font-medium text-amber-800 mb-2">Need to cancel this order?</h3>
@@ -2711,6 +2715,26 @@ window.deleteOrder = function(id){
       });
     }
   });
+};
+window.printOrder = function(orderId){
+  const order = State.orders[orderId];
+  if(!order){ toast('Order not found','err'); return; }
+  const w = window.open('', '_blank', 'width=800,height=600');
+  w.document.write('<html><head><title>Invoice - ' + order.orderId + '</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:0 20px;color:#333}h1{color:#8B6F4E}.header{display:flex;justify-content:space-between;border-bottom:2px solid #8B6F4E;padding-bottom:16px;margin-bottom:24px}.section{border-bottom:1px solid #eee;padding:12px 0}.item{display:flex;justify-content:space-between;padding:6px 0}.total{font-size:18px;font-weight:bold;color:#8B6F4E}.meta{font-size:12px;color:#888}.badge{display:inline-block;padding:4px 12px;border-radius:20px;background:#F5EDE4;color:#8B6F4E;font-size:12px}</style></head><body>');
+  w.document.write('<div class="header"><div><h1>Gbyrish</h1><p>by Sehrish</p></div><div style="text-align:right"><p class="meta">Order #' + order.orderId + '</p><p class="meta">' + new Date(order.createdAt).toLocaleString() + '</p><span class="badge">' + escapeHtml(order.status) + '</span></div></div>');
+  w.document.write('<div class="section"><h3>Bill To</h3><p>' + escapeHtml(order.customer.name) + '</p><p>' + escapeHtml(order.customer.email) + '</p><p>' + escapeHtml(order.customer.phone) + '</p><p>' + escapeHtml(order.customer.address) + ', ' + escapeHtml(order.customer.city) + ', ' + escapeHtml(order.customer.province) + '</p></div>');
+  w.document.write('<div class="section"><h3>Items</h3>');
+  order.items.forEach(it => {
+    w.document.write('<div class="item"><span>' + escapeHtml(it.name) + ' x' + it.qty + '</span><span>' + money(it.price * it.qty) + '</span></div>');
+  });
+  if(order.spendDiscount > 0) w.document.write('<div class="item" style="color:green"><span>Spend Discount</span><span>-' + money(order.spendDiscount) + '</span></div>');
+  if(order.couponDiscount > 0) w.document.write('<div class="item" style="color:green"><span>Coupon (' + escapeHtml(order.coupon||'N/A') + ')</span><span>-' + money(order.couponDiscount) + '</span></div>');
+  w.document.write('</div>');
+  w.document.write('<div class="section"><div class="total"><div class="item"><span>Total</span><span>' + money(order.totals.grand) + '</span></div></div></div>');
+  w.document.write('<p class="meta" style="text-align:center;margin-top:40px">Payment: ' + (order.payment==='cod'?'Cash on Delivery':'Bank Transfer') + ' &middot; Delivery: 5-7 business days</p>');
+  w.document.write('</body></html>');
+  w.document.close();
+  w.onload = function(){ w.print(); };
 };
 window.shareProduct = function(id){
   const p = State.products[id];
@@ -3477,6 +3501,9 @@ function doRender(){
       <div id="cart-drawer-root">${CartDrawer()}</div>
       ${SearchOverlay()}
       <button id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" class="fixed bottom-20 right-4 z-40 w-11 h-11 rounded-full bg-primary text-white shadow-lg flex items-center justify-center text-lg opacity-0 pointer-events-none transition-opacity duration-300 hover:bg-primary/90" aria-label="Back to top">&#8593;</button>
+      <a href="https://wa.me/923001234567" target="_blank" rel="noopener" class="fixed bottom-20 left-4 z-40 w-11 h-11 rounded-full bg-green-500 text-white shadow-lg flex items-center justify-center text-lg hover:bg-green-600 transition" aria-label="Chat on WhatsApp">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      </a>
       <div id="lightbox" onclick="window.closeLightbox()" class="fixed inset-0 bg-black/90 z-[200] hidden items-center justify-center cursor-zoom-out">
         <button onclick="event.stopPropagation(); window.lightboxNav(-1)" class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 text-white/80 text-3xl hover:text-white z-10">&#8249;</button>
         <img id="lightbox-img" src="" class="max-w-[90vw] max-h-[90vh] object-contain">
