@@ -1524,6 +1524,9 @@ function productCard(id,p){
     <button onclick="event.preventDefault(); event.stopPropagation(); window.openQuickView('${id}')" class="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20" title="Quick View">
       <span class="bg-white text-ink text-xs font-medium px-4 py-2 rounded-full shadow-lg">Quick View</span>
     </button>
+    <button onclick="event.preventDefault(); event.stopPropagation(); window.openQuickView('${id}')" class="absolute bottom-2 right-2 z-10 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center md:hidden" title="Quick View">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="2"/><path d="M1 1l5 5M13 1l-5 5M1 13l5-5M13 13l-5-5"/></svg>
+    </button>
   </div>`;
 }
 function avgRating(p){
