@@ -1870,6 +1870,10 @@ function pageCheckout(){
           </div>
         </div>
         <div class="bg-white border border-gray-100 rounded-2xl p-5 md:p-6">
+          <h3 class="font-medium mb-4">Order Notes <span class="text-gray-400 font-normal">(optional)</span></h3>
+          <textarea name="orderNotes" placeholder="Any special instructions for your order? e.g. gift wrapping preference, delivery notes..." rows="2" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm"></textarea>
+        </div>
+        <div class="bg-white border border-gray-100 rounded-2xl p-5 md:p-6">
           <h3 class="font-medium mb-4">Payment Method</h3>
           <label class="flex items-center gap-3 border border-gray-200 rounded-xl p-3 mb-2 cursor-pointer">
             <input type="radio" name="payment" value="cod" checked> Cash on Delivery
@@ -1945,6 +1949,7 @@ window.placeOrder = async function(form){
       photo: State.user.photoURL || ''
     },
     payment: data.get('payment'),
+    orderNotes: data.get('orderNotes') || null,
     items: State.cart.map(c => { const p = State.products[c.id]; return { id: c.id, name: p?.name || 'Product', price: effPrice(p), qty: c.qty, opts: c.opts }; }),
     totals: t,
     coupon: State.appliedCoupon || null,
@@ -2108,6 +2113,7 @@ function pageOrderConfirmation(orderId){
       <div class="border-t border-gray-100 pt-3 flex justify-between font-semibold"><span>Grand Total</span><span>${money(order.totals.grand)}</span></div>
       <p class="text-xs text-gray-400 pt-2">Shipping to: ${escapeHtml(order.customer.address)}, ${escapeHtml(order.customer.city)}, ${escapeHtml(order.customer.province)}, ${escapeHtml(order.customer.country)}</p>
       <p class="text-xs text-gray-400">Payment method: ${order.payment==='cod'?'Cash on Delivery':'Bank Transfer'}</p>
+      ${order.orderNotes ? `<p class="text-xs text-gray-400 mt-1"><strong>Note:</strong> ${escapeHtml(order.orderNotes)}</p>` : ''}
       <p class="text-xs text-gray-400 flex items-center gap-1"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" class="inline"><path d="M1 4l6 4 6-8 4 3H1z"/></svg>Estimated delivery: <strong>${getEstimatedDelivery()}</strong></p>
     </div>
     <div class="flex flex-col sm:flex-row gap-3 justify-center mt-4">
@@ -2186,8 +2192,10 @@ function trackOrderResultHtml(orderId){
         ${order.spendDiscountRule ? `<p class="text-[10px] text-gray-400 mt-0.5">Spend PKR ${Number(order.spendDiscountRule.minSpend).toLocaleString()} &rarr; Get PKR ${Number(order.spendDiscountRule.discountAmount).toLocaleString()} off &middot; Discount applies to ${order.spendDiscountRule.discountTarget === 'store' ? 'entire order' : order.spendDiscountRule.discountTarget === 'category' ? escapeHtml(order.spendDiscountRule.discountCategory || '') : 'selected products'}</p>` : ''}
       </div>` : ''}
       ${order.couponDiscount > 0 ? `<div class="flex justify-between text-sm text-green-600"><span>Coupon (${escapeHtml(order.coupon || 'N/A')})</span><span>-${money(order.couponDiscount)}</span></div>` : ''}
+      ${order.orderNotes ? `<p class="text-xs text-gray-400 border-t border-gray-100 pt-2 mt-2"><strong>Note:</strong> ${escapeHtml(order.orderNotes)}</p>` : ''}
       <div class="flex justify-between font-semibold text-base pt-2 border-t border-gray-100"><span>Grand Total</span><span>${money(order.totals.grand)}</span></div>
     </div>
+    <p class="text-xs text-gray-400 mt-3 flex items-center gap-1"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" class="inline"><path d="M1 4l6 4 6-8 4 3H1z"/></svg>Estimated delivery: <strong>${getEstimatedDelivery()}</strong></p>
     ${order.status==='Pending' ? `<button onclick="window.cancelOrder('${order.orderId}')" class="mt-4 w-full py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition">Cancel Order</button>` : ''}
   </div>`;
 }
