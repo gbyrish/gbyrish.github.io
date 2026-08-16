@@ -1230,6 +1230,8 @@ function Header(){
           <a href="#customrings" class="navlink hover:text-primary">Ring</a>
           <a href="#deals" class="navlink hover:text-primary text-accentDark">Deals</a>
           <a href="#trackorder" class="navlink hover:text-primary">Track Order</a>
+          <a href="#faq" class="navlink hover:text-primary">FAQ</a>
+          <a href="#size-guide" class="navlink hover:text-primary">Size Guide</a>
           ${State.isAdmin ? '<a href="#admin" class="navlink hover:text-accentDark text-accentDark">Admin</a>' : ''}
         </nav>
         <div class="flex items-center gap-1 md:gap-4">
@@ -2609,6 +2611,89 @@ window.clearCompare = function(){
   render();
 };
 
+/* ---------------- Page: FAQ ---------------- */
+function pageFAQ(){
+  const faqs = [
+    { q: 'How do I place an order?', a: 'Browse products, add items to your cart, and proceed to checkout. Fill in your shipping details and choose Cash on Delivery or Bank Transfer.' },
+    { q: 'What payment methods do you accept?', a: 'We accept Cash on Delivery and Bank Transfer. Payment details for bank transfer are provided at checkout.' },
+    { q: 'How long does delivery take?', a: 'Standard delivery takes 5-7 business days. Customized items may take 7-14 days depending on complexity.' },
+    { q: 'Do you offer gift wrapping?', a: 'Yes! Select gift wrapping at checkout for PKR 150. You can also add a personalized gift message.' },
+    { q: 'Can I cancel my order?', a: 'You can cancel pending orders. Message us on Instagram with your Order ID and we will process it within 24 hours.' },
+    { q: 'Do you ship internationally?', a: 'Currently we ship within Pakistan. International shipping may be available on request — contact us on Instagram.' },
+    { q: 'How do I track my order?', a: 'Use the "Track Order" page on our website. Enter your Order ID (e.g. GYB-1000-1234) to see real-time status updates.' },
+    { q: 'What if my order arrives damaged?', a: 'Contact us within 48 hours of delivery via Instagram. We will arrange a replacement or refund for damaged items.' },
+    { q: 'Are customized items returnable?', a: 'Customized/personalized items cannot be returned unless defective. Standard items can be returned within 7 days.' },
+    { q: 'How can I become a reseller?', a: 'Message us on Instagram with your business details. We offer wholesale pricing for verified resellers.' },
+  ];
+  return `
+  <div class="max-w-3xl mx-auto px-4 py-8 md:py-12">
+    <div class="text-xs text-gray-400 mb-2"><a href="#home" class="hover:text-primary">Home</a><span>/</span><span>FAQ</span></div>
+    <h1 class="font-serif text-2xl md:text-4xl mb-8">Frequently Asked Questions</h1>
+    <div class="space-y-3">
+      ${faqs.map((f,i)=>`
+      <details class="bg-white border border-gray-100 rounded-2xl group">
+        <summary class="p-4 cursor-pointer font-medium text-sm flex justify-between items-center list-none">
+          <span>${f.q}</span>
+          <svg class="w-5 h-5 text-gray-400 group-open:rotate-180 transition-transform shrink-0 ml-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 15l7-7 7 7"/></svg>
+        </summary>
+        <div class="px-4 pb-4 text-sm text-gray-600 leading-relaxed">${f.a}</div>
+      </details>`).join('')}
+    </div>
+    <div class="mt-10 p-6 bg-cream2 rounded-2xl text-center">
+      <p class="text-sm text-gray-600 mb-3">Still have questions?</p>
+      <a href="https://www.instagram.com/gbyrish/" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-sm font-medium text-white bg-[#E1306C] px-6 py-2.5 rounded-full hover:opacity-90 transition">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+        Message us on Instagram
+      </a>
+    </div>
+  </div>`;
+}
+
+/* ---------------- Page: Size Guide ---------------- */
+function pageSizeGuide(){
+  return `
+  <div class="max-w-3xl mx-auto px-4 py-8 md:py-12">
+    <div class="text-xs text-gray-400 mb-2"><a href="#home" class="hover:text-primary">Home</a><span>/</span><span>Size Guide</span></div>
+    <h1 class="font-serif text-2xl md:text-4xl mb-2">Size Guide</h1>
+    <p class="text-gray-500 text-sm mb-8">Find your perfect fit with our size charts below.</p>
+    <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-8">
+      <div class="bg-cream2 px-5 py-3 font-medium text-sm">Jewellery &mdash; Ring Sizes</div>
+      <div class="overflow-x-auto"><table class="w-full text-sm">
+        <thead><tr class="border-b border-gray-100"><th class="text-left py-3 px-4 text-xs text-gray-500">Size</th><th class="text-left py-3 px-4 text-xs text-gray-500">US</th><th class="text-left py-3 px-4 text-xs text-gray-500">EU</th><th class="text-left py-3 px-4 text-xs text-gray-500">Diameter (mm)</th></tr></thead>
+        <tbody>
+          ${[['6',6,46.8],['7',7,48.4],['8',8,50],['9',9,51.8],['10',10,53.5],['11',11,55.2],['12',12,56.9]].map(([s,us,mm])=>`<tr class="border-b border-gray-50"><td class="py-2.5 px-4">${s}</td><td class="py-2.5 px-4">${us}</td><td class="py-2.5 px-4">${Math.round(mm*0.833)}</td><td class="py-2.5 px-4">${mm}</td></tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-8">
+      <div class="bg-cream2 px-5 py-3 font-medium text-sm">Bracelets &mdash; Wrist Size</div>
+      <div class="overflow-x-auto"><table class="w-full text-sm">
+        <thead><tr class="border-b border-gray-100"><th class="text-left py-3 px-4 text-xs text-gray-500">Size</th><th class="text-left py-3 px-4 text-xs text-gray-500">Wrist (cm)</th><th class="text-left py-3 px-4 text-xs text-gray-500">Wrist (inches)</th></tr></thead>
+        <tbody>
+          ${[['S','14-15','5.5-6'],['M','16-17','6.3-6.7'],['L','18-19','7.1-7.5'],['XL','20-21','7.9-8.3']].map(([s,cm,inc])=>`<tr class="border-b border-gray-50"><td class="py-2.5 px-4">${s}</td><td class="py-2.5 px-4">${cm}</td><td class="py-2.5 px-4">${inc}</td></tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-8">
+      <div class="bg-cream2 px-5 py-3 font-medium text-sm">Necklaces &mdash; Chain Length</div>
+      <div class="overflow-x-auto"><table class="w-full text-sm">
+        <thead><tr class="border-b border-gray-100"><th class="text-left py-3 px-4 text-xs text-gray-500">Length</th><th class="text-left py-3 px-4 text-xs text-gray-500">Style</th><th class="text-left py-3 px-4 text-xs text-gray-500">Fits</th></tr></thead>
+        <tbody>
+          ${[['16 inch','Choker','High on neck'],['18 inch','Princess','Base of neck'],['20 inch','Matinee','Below collarbone'],['24 inch','Opera','Below bust'],['30 inch','Rope','Waist/cinched']].map(([l,s,f])=>`<tr class="border-b border-gray-50"><td class="py-2.5 px-4">${l}</td><td class="py-2.5 px-4">${s}</td><td class="py-2.5 px-4">${f}</td></tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>
+    <p class="text-xs text-gray-400 text-center">Not sure about your size? Message us on Instagram and we will help!</p>
+  </div>`;
+}
+
+/* ---------------- Page: Compare ---------------- */
+  State.compareList = [];
+  localStorage.setItem('gbyrish_compare', '[]');
+  toast('Comparison cleared');
+  render();
+};
+
 /* ---------------- Admin Pages ---------------- */
 function adminNav(active){
   const items = [['#admin','Dashboard'],['#admin/sale','Sale Event'],['#admin/discounts','Spend Discount'],['#admin/product','Add Product'],['#admin/inventory','Inventory'],['#admin/orders','Orders'],['#admin/trash','Recycle Bin'],['#admin/settings','Site Settings']];
@@ -3972,6 +4057,8 @@ function doRender(){
     else if(route==='#compare') body = pageCompare();
     else if(route.startsWith('#profile')) body = pageProfile();
     else if(route==='#orders') body = pageProfile();
+    else if(route==='#faq') body = pageFAQ();
+    else if(route==='#size-guide') body = pageSizeGuide();
     else body = pageHome();
 
     root.innerHTML = `
