@@ -1819,6 +1819,15 @@ document.addEventListener('keydown', function(e){
   if(e.key === 'ArrowLeft'){ window.lightboxNav(-1); }
   if(e.key === 'ArrowRight'){ window.lightboxNav(1); }
 });
+let _swipeX = 0;
+document.addEventListener('touchstart', e => { _swipeX = e.touches[0].clientX; }, { passive: true });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - _swipeX;
+  if(Math.abs(dx) < 50) return;
+  const lb = document.getElementById('lightbox');
+  if(!lb || lb.classList.contains('hidden')) return;
+  window.lightboxNav(dx > 0 ? -1 : 1);
+}, { passive: true });
 window.changeProductImage = function(dir){
   if(!currentProductImages.length) return;
   currentProductImageIndex = (currentProductImageIndex + dir + currentProductImages.length) % currentProductImages.length;
