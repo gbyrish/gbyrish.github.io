@@ -3541,7 +3541,7 @@ window.filterShopPriceMobile = function(){
   window._applyPriceFilter('.shop-product-grid', min, max);
 };
 window.setShopView = function(mode){
-  const grid = document.querySelector('.grid.grid-cols-2.md\\:grid-cols-3, .grid.grid-cols-2.md\\:grid-cols-3.lg\\:grid-cols-4');
+  const grid = document.querySelector('.shop-product-grid');
   const gBtn = document.getElementById('shop-view-grid');
   const lBtn = document.getElementById('shop-view-list');
   if(!grid) return;
@@ -3710,6 +3710,17 @@ function doRender(){
 }
 
 render();
+
+// Cookie consent banner
+if(!localStorage.getItem('gbyrish_cookies')){
+  setTimeout(()=>{
+    const banner = document.createElement('div');
+    banner.id = 'cookie-banner';
+    banner.className = 'fixed bottom-0 left-0 right-0 z-[300] bg-white border-t border-gray-200 shadow-lg p-4';
+    banner.innerHTML = `<div class="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap"><p class="text-sm text-gray-600">This site uses cookies to enhance your shopping experience. By continuing, you agree to our use of cookies.</p><div class="flex gap-2 shrink-0"><button onclick="document.getElementById('cookie-banner').remove();localStorage.setItem('gbyrish_cookies','1')" class="btn-primary px-5 py-2 rounded-xl text-sm">Accept</button><button onclick="document.getElementById('cookie-banner').remove();localStorage.setItem('gbyrish_cookies','0')" class="text-sm text-gray-500 underline">Decline</button></div></div>`;
+    document.body.appendChild(banner);
+  }, 1500);
+}
 
 // Back-to-top button visibility
 window.addEventListener('scroll', ()=>{
