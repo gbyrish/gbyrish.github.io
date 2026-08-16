@@ -291,6 +291,7 @@ const State = {
   cart: (()=>{ try { return JSON.parse(localStorage.getItem('gbyrish_cart') || '[]'); } catch { return []; } })(),
   wishlist: (()=>{ try { return JSON.parse(localStorage.getItem('gbyrish_wishlist') || '[]'); } catch { return []; } })(),
   recentlyViewed: (()=>{ try { return JSON.parse(localStorage.getItem('gbyrish_recent') || '[]'); } catch { return []; } })(),
+  compareList: (()=>{ try { return JSON.parse(localStorage.getItem('gbyrish_compare') || '[]'); } catch { return []; } })(),
   route: normalizeRoute(location.hash || '#home'),
   coupons: { WELCOME10: 10, GBYRISH20: 20 },
   appliedCoupon: null,
@@ -331,6 +332,18 @@ window.toggleWishlist = function(id, e){
   saveWishlist(); render();
 };
 window.isInWishlist = function(id){ return State.wishlist.includes(id); };
+window.toggleCompare = function(id){
+  if(!State.user){ toast('Sign in to compare products','err'); return; }
+  const idx = State.compareList.indexOf(id);
+  if(idx>=0){ State.compareList.splice(idx,1); toast('Removed from comparison'); }
+  else {
+    if(State.compareList.length>=4){ toast('You can compare up to 4 products','err'); return; }
+    State.compareList.push(id); toast('Added to comparison!');
+  }
+  localStorage.setItem('gbyrish_compare', JSON.stringify(State.compareList));
+  render();
+};
+window.isInCompare = function(id){ return State.compareList.includes(id); };
 function money(n){ return 'Rs. ' + Number(n||0).toLocaleString('en-PK', {maximumFractionDigits:0}); }
 function getEstimatedDelivery(){
   const d = new Date();
@@ -1246,6 +1259,7 @@ function MobileMenu(){
       <a href="#deals" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100 text-accentDark font-medium">Deals</a>
       <a href="#orders" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">My Orders</a>
       ${State.user ? '<a href="#wishlist" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">&#9829; Wishlist</a>' : ''}
+      ${State.user ? '<a href="#compare" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">&#8644; Compare</a>' : ''}
       <a href="#trackorder" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Track Order</a>
       ${State.isAdmin ? '<a href="#admin" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100 text-accentDark">Admin Dashboard</a>' : ''}
       <div class="mt-4">
@@ -1527,6 +1541,7 @@ function productCard(id,p){
       </div>
     </a>
     ${State.user ? `<button onclick="window.toggleWishlist('${id}', event)" class="absolute top-2 left-2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-lg hover:bg-white transition" title="${wished?'Remove from wishlist':'Add to wishlist'}">${wished?'&#9829;':'&#9825;'}</button>` : ''}
+    ${State.user ? `<button onclick="window.toggleCompare('${id}')" class="absolute top-2 ${wished?'left-12':'left-2'} z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-xs font-bold hover:bg-white transition" title="Compare" style="font-size:10px">&#8644;</button>` : ''}
     ${Number(p.stock)<=0 ? `<a href="#product/${id}" class="absolute bottom-2 left-2 right-2 bg-white/90 text-primary text-xs font-medium py-2 rounded-lg hover:bg-white transition text-center block">Notify Me When Available</a>` : ''}
     <button onclick="event.preventDefault(); event.stopPropagation(); window.openQuickView('${id}')" class="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20" title="Quick View">
       <span class="bg-white text-ink text-xs font-medium px-4 py-2 rounded-full shadow-lg">Quick View</span>
@@ -1658,6 +1673,7 @@ function pageProduct(id){
           </div>
           <button ${Number(p.stock)<=0?'disabled':''} onclick="window.addToCartFromDetail('${id}')" class="btn-accent flex-1 py-3.5 rounded-xl font-medium disabled:opacity-40">${isCustomizableCategory(p.category)?'Customize &amp; Add to Cart':'Add to Cart'}</button>
           ${State.user ? `<button onclick="window.toggleWishlist('${id}', event)" class="w-11 h-11 border rounded-xl flex items-center justify-center hover:bg-cream2 transition text-lg" title="Wishlist">${State.wishlist.includes(id)?'&#9829;':'&#9825;'}</button>` : ''}
+          ${State.user ? `<button onclick="window.toggleCompare('${id}')" class="w-11 h-11 border rounded-xl flex items-center justify-center hover:bg-cream2 transition text-sm font-bold" title="Compare" style="font-size:11px">&#8644;</button>` : ''}
           <button onclick="window.shareProduct('${id}')" class="w-11 h-11 border rounded-xl flex items-center justify-center hover:bg-cream2 transition" title="Share">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 10l6-4M6 6l6 4"/></svg>
           </button>
@@ -2243,6 +2259,7 @@ function pageProfile(){
       </div>
       <div class="ml-auto flex gap-2">
         <a href="#wishlist" class="text-sm border border-gray-200 px-4 py-2 rounded-xl hover:bg-cream2">&#9829; Wishlist (${State.wishlist.length})</a>
+        <a href="#compare" class="text-sm border border-gray-200 px-4 py-2 rounded-xl hover:bg-cream2">&#8644; Compare (${State.compareList.length})</a>
         <button onclick="window.doLogout()" class="text-sm border border-red-200 text-red-500 px-4 py-2 rounded-xl">Sign Out</button>
       </div>
     </div>
@@ -2287,6 +2304,67 @@ function pageWishlist(){
     </div>`}
   </div>`;
 }
+function pageCompare(){
+  if(!State.user){ setTimeout(openAuthModal,50); return `<div class="text-center py-24">Please sign in...</div>`; }
+  const items = State.compareList.map(id=>State.products[id]).filter(Boolean);
+  return `
+  <div class="max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-12">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="font-serif text-2xl md:text-4xl mb-1">Compare Products</h1>
+        <p class="text-gray-500 text-sm">${items.length} of 4 products selected</p>
+      </div>
+      ${items.length > 0 ? `<button onclick="window.clearCompare()" class="text-red-400 text-sm underline hover:text-red-600">Clear All</button>` : ''}
+    </div>
+    ${items.length < 2 ? '<p class="text-gray-400 text-center py-10">Add at least 2 products to compare. Click the &#8644; icon on product cards to add them here. <a href="#shopall" class="text-primary underline">Browse products</a></p>' : `
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse min-w-[500px]">
+        <thead>
+          <tr class="border-b border-gray-200">
+            <th class="text-left text-xs font-medium text-gray-500 uppercase tracking-wide py-3 pr-4 w-32">Feature</th>
+            ${items.map(p => `<th class="text-center py-3 px-2 min-w-[180px]">
+              <img src="${p.image||''}" onerror="this.style.display='none'" class="w-20 h-20 object-cover rounded-xl mx-auto mb-2 bg-cream2">
+              <p class="font-medium text-sm">${escapeHtml(p.name)}</p>
+              <p class="text-xs text-gray-400">${escapeHtml(p.category||'')}</p>
+              <div class="flex gap-2 mt-2 justify-center">
+                <a href="#product/${p.id}" class="text-xs text-primary underline">View</a>
+                <button onclick="window.toggleCompare('${p.id}')" class="text-xs text-red-400 underline">Remove</button>
+              </div>
+            </th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b border-gray-100">
+            <td class="py-3 pr-4 text-sm font-medium">Price</td>
+            ${items.map(p => `<td class="text-center py-3 px-2 text-sm">${money(p.price)}${Number(p.discountPercent||0)>0 ? `<br><span class="text-green-600 font-medium">${money(effPrice(p))}</span>` : (saleState()==='active' && salePercent()>0 ? `<br><span class="text-green-600 font-medium">${money(effPrice(p))}</span>` : '')}</td>`).join('')}
+          </tr>
+          <tr class="border-b border-gray-100 bg-cream2/50">
+            <td class="py-3 pr-4 text-sm font-medium">Stock</td>
+            ${items.map(p => `<td class="text-center py-3 px-2 text-sm ${Number(p.stock)<=0?'text-red-500':(Number(p.stock)<10?'text-amber-600 font-medium':'text-green-600')}">${Number(p.stock)<=0?'Out of Stock':(Number(p.stock)<10?'Only '+p.stock+' left':'In Stock ('+p.stock+')')}</td>`).join('')}
+          </tr>
+          <tr class="border-b border-gray-100">
+            <td class="py-3 pr-4 text-sm font-medium">Rating</td>
+            ${items.map(p => `<td class="text-center py-3 px-2 text-sm">${avgRating(p)>0?starString(avgRating(p))+' <span class=\"text-gray-400\">('+Object.keys(p.reviews||{}).length+')</span>':'No reviews'}</td>`).join('')}
+          </tr>
+          <tr class="border-b border-gray-100 bg-cream2/50">
+            <td class="py-3 pr-4 text-sm font-medium">Description</td>
+            ${items.map(p => `<td class="text-center py-3 px-2 text-xs text-gray-600">${(p.description||'').slice(0,100)}${(p.description||'').length>100?'...':''}</td>`).join('')}
+          </tr>
+          <tr class="border-b border-gray-100">
+            <td class="py-3 pr-4 text-sm font-medium">Actions</td>
+            ${items.map(p => `<td class="text-center py-3 px-2"><button onclick="window.addToCartFromDetail('${p.id}')" class="btn-primary px-4 py-2 rounded-xl text-xs font-medium ${Number(p.stock)<=0?'opacity-40 cursor-not-allowed':''}" ${Number(p.stock)<=0?'disabled':''}>Add to Cart</button></td>`).join('')}
+          </tr>
+        </tbody>
+      </table>
+    </div>`}
+  </div>`;
+}
+window.clearCompare = function(){
+  State.compareList = [];
+  localStorage.setItem('gbyrish_compare', '[]');
+  toast('Comparison cleared');
+  render();
+};
 
 /* ---------------- Admin Pages ---------------- */
 function adminNav(active){
@@ -3512,6 +3590,7 @@ function doRender(){
     else if(route.startsWith('#shop')) body = pageShop();
     else if(route==='#checkout') body = pageCheckout();
     else if(route==='#wishlist') body = pageWishlist();
+    else if(route==='#compare') body = pageCompare();
     else if(route.startsWith('#profile')) body = pageProfile();
     else if(route==='#orders') body = pageProfile();
     else body = pageHome();
