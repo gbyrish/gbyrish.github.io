@@ -150,7 +150,13 @@ tailwind.config = {
 </head>
 <body class="bg-cream text-ink">
 
-<div id="app-root"></div>
+<div id="app-root">
+  <div id="loading-screen" class="fixed inset-0 bg-cream flex flex-col items-center justify-center z-[9999]">
+    <img src="https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?q=80&w=200&auto=format&fit=crop" class="w-16 h-16 rounded-full object-cover mb-4 animate-pulse" onerror="this.style.display='none'">
+    <p class="font-serif text-xl text-primary">Gbyrish</p>
+    <p class="text-xs text-gray-400 mt-1">Loading...</p>
+  </div>
+</div>
 <div id="toast-container" class="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[999] flex flex-col gap-2 items-center max-h-[60vh] overflow-hidden pointer-events-none"></div>
 <div id="modal-root"></div>
 
@@ -1322,9 +1328,10 @@ window.openAuthModal = openAuthModal;
 
 function CartDrawer(){
   const t = cartTotals();
-  const items = State.cart.map((c,idx)=>{
+  const cartItems = State.cart.filter((c) => State.products[c.id]);
+  const items = cartItems.map((c,idx)=>{
     const p = State.products[c.id];
-    if(!p) return '';
+    const origIdx = State.cart.indexOf(c);
     return `<div class="flex gap-3 border-b border-gray-100 pb-4">
       <img src="${p.image||''}" onerror="this.style.display='none'" class="w-20 h-20 object-cover rounded-xl bg-cream2 shrink-0">
       <div class="flex-1 min-w-0">
@@ -1332,11 +1339,11 @@ function CartDrawer(){
         ${optsSummary(c.opts) ? `<p class="text-xs text-gray-500 mt-0.5">${optsSummary(c.opts)}</p>` : ''}
         <p class="text-primary text-sm font-semibold mt-1">${money(effPrice(p))}</p>
         <div class="flex items-center gap-2 mt-2">
-          <button onclick="window.updateQty(${idx},-1)" class="w-7 h-7 border rounded-full flex items-center justify-center text-xs">-</button>
+          <button onclick="window.updateQty(${origIdx},-1)" class="w-7 h-7 border rounded-full flex items-center justify-center text-xs">-</button>
           <span class="text-sm w-5 text-center">${c.qty}</span>
-          <button onclick="window.updateQty(${idx},1)" class="w-7 h-7 border rounded-full flex items-center justify-center text-xs">+</button>
-          ${State.user ? `<button onclick="window.saveForLater(${idx})" class="text-xs text-primary underline ml-1" title="Save for later">Later</button>` : ''}
-          <button onclick="window.removeFromCart(${idx})" class="ml-auto text-xs text-red-400 underline">Remove</button>
+          <button onclick="window.updateQty(${origIdx},1)" class="w-7 h-7 border rounded-full flex items-center justify-center text-xs">+</button>
+          ${State.user ? `<button onclick="window.saveForLater(${origIdx})" class="text-xs text-primary underline ml-1" title="Save for later">Later</button>` : ''}
+          <button onclick="window.removeFromCart(${origIdx})" class="ml-auto text-xs text-red-400 underline">Remove</button>
         </div>
       </div>
     </div>`;
@@ -1739,6 +1746,9 @@ window.openLightbox = function(src){
   if(!lb || !img) return;
   img.src = src;
   lb.dataset.src = src;
+  const curIdx = currentProductImages.indexOf(src);
+  lb.dataset.idx = curIdx >= 0 ? curIdx : 0;
+  updateLightboxCounter();
   lb.classList.remove('hidden');
   lb.classList.add('flex');
   document.body.style.overflow = 'hidden';
@@ -1757,8 +1767,20 @@ window.lightboxNav = function(dir){
   const curIdx = currentProductImages.indexOf(curSrc);
   const newIdx = (curIdx + dir + currentProductImages.length) % currentProductImages.length;
   const img = document.getElementById('lightbox-img');
-  if(img && currentProductImages[newIdx]){ img.src = currentProductImages[newIdx]; lb.dataset.src = currentProductImages[newIdx]; }
+  if(img && currentProductImages[newIdx]){ img.src = currentProductImages[newIdx]; lb.dataset.src = currentProductImages[newIdx]; lb.dataset.idx = newIdx; updateLightboxCounter(); }
 };
+window.updateLightboxCounter = function(){
+  const counter = document.getElementById('lb-counter');
+  const lb = document.getElementById('lightbox');
+  if(counter && lb) counter.textContent = ((lb.dataset.idx ? Number(lb.dataset.idx)+1 : 1) + '/' + currentProductImages.length);
+};
+document.addEventListener('keydown', function(e){
+  const lb = document.getElementById('lightbox');
+  if(!lb || lb.classList.contains('hidden')) return;
+  if(e.key === 'Escape'){ window.closeLightbox(); }
+  if(e.key === 'ArrowLeft'){ window.lightboxNav(-1); }
+  if(e.key === 'ArrowRight'){ window.lightboxNav(1); }
+});
 window.changeProductImage = function(dir){
   if(!currentProductImages.length) return;
   currentProductImageIndex = (currentProductImageIndex + dir + currentProductImages.length) % currentProductImages.length;
@@ -3462,7 +3484,10 @@ function render(){
   // Use a microtask instead of requestAnimationFrame: rAF gets paused/throttled
   // by browsers when the tab/iframe isn't visible yet, which was causing a
   // blank screen on first load in some embedded/preview contexts.
-  Promise.resolve().then(()=>{ _renderScheduled = false; doRender(); });
+  Promise.resolve().then(()=>{ _renderScheduled = false; doRender();
+    const ls = document.getElementById('loading-screen');
+    if(ls) ls.remove();
+  });
 }
 // Countdown timer tick — updates sale countdowns every second
 setInterval(saleTick, 1000);
@@ -3509,6 +3534,7 @@ function doRender(){
         <img id="lightbox-img" src="" class="max-w-[90vw] max-h-[90vh] object-contain">
         <button onclick="event.stopPropagation(); window.lightboxNav(1)" class="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 text-white/80 text-3xl hover:text-white z-10">&#8250;</button>
         <button onclick="event.stopPropagation(); window.closeLightbox()" class="absolute top-4 right-4 text-white/80 hover:text-white text-3xl z-10">&times;</button>
+        <span id="lb-counter" class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 text-white text-sm px-4 py-1.5 rounded-full">1/1</span>
       </div>
     `;
     positionHeaderForSaleBar();
