@@ -231,7 +231,6 @@ window.sendOrderEmail = async function(order, orderId){
       coupon_discount: order.couponDiscount > 0 ? money(order.couponDiscount) : 'None',
       instagram_link: 'https://www.instagram.com/gbyrish/'
     });
-    console.log('EmailJS sent successfully:', result);
     toast('Order confirmation email sent!');
     return true;
   }catch(e){
@@ -847,7 +846,7 @@ function setSaleBarDismissed(){
     const c = saleConfig();
     const version = (c.name || '') + '|' + (c.startDate || '') + '|' + (c.endDate || '') + '|' + (c.discount || '');
     localStorage.setItem(SALE_BAR_DISMISS_KEY, JSON.stringify({ dismissed: true, version, ts: Date.now() }));
-  }catch(e){}
+  }catch(e){ /* silent */ }
 }
 function saleTopBar(){
   const st = saleState();
@@ -1542,7 +1541,7 @@ function productCard(id,p){
     </a>
     ${State.user ? `<button onclick="window.toggleWishlist('${id}', event)" class="absolute top-2 left-2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-lg hover:bg-white transition" title="${wished?'Remove from wishlist':'Add to wishlist'}">${wished?'&#9829;':'&#9825;'}</button>` : ''}
     ${State.user ? `<button onclick="window.toggleCompare('${id}')" class="absolute top-2 ${wished?'left-12':'left-2'} z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-xs font-bold hover:bg-white transition" title="Compare" style="font-size:10px">&#8644;</button>` : ''}
-    ${Number(p.stock)<=0 ? `<a href="#product/${id}" class="absolute bottom-2 left-2 right-2 bg-white/90 text-primary text-xs font-medium py-2 rounded-lg hover:bg-white transition text-center block">Notify Me When Available</a>` : ''}
+    ${Number(p.stock)>0 ? `<button onclick="event.preventDefault(); event.stopPropagation(); window.addToCart('${id}', 1, {}); toast('Added to cart!')" class="absolute bottom-2 left-2 z-10 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primaryDark transition shadow-lg" title="Quick add to cart"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 7h12M7 1v12"/></svg></button>` : ''}
     <button onclick="event.preventDefault(); event.stopPropagation(); window.openQuickView('${id}')" class="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20" title="Quick View">
       <span class="bg-white text-ink text-xs font-medium px-4 py-2 rounded-full shadow-lg">Quick View</span>
     </button>
@@ -2113,7 +2112,7 @@ window.placeOrder = async function(form){
     try {
       const mailto = 'mailto:' + order.customer.email + '?subject=' + encodeURIComponent('Order Confirmation - Gbyrish ' + orderId) + '&body=' + encodeURIComponent(emailBody.substring(0, 5000));
       window.open(mailto);
-    } catch(e){}
+    } catch(e){ /* silent */ }
   }
 
   // Step 4: Clear cart and navigate to confirmation (always runs)
