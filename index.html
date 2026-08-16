@@ -1594,15 +1594,27 @@ function pageShop(){
   <div class="max-w-7xl mx-auto px-4 md:px-8 py-5 md:py-12">
     <h1 class="font-serif text-xl md:text-4xl mb-1 md:mb-2">Shop ${activeCat!=='All'? '- '+escapeHtml(activeCat):'All Products'}</h1>
     <p class="text-gray-500 text-sm md:text-base mb-4 md:mb-8">${list.length} product${list.length!==1?'s':''} found</p>
-    <div class="flex items-center gap-3 mb-4">
-      <label class="text-sm text-gray-500">Sort by:</label>
-      <select onchange="window.sortShopProducts(this.value)" class="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white">
-        <option value="default">Featured</option>
-        <option value="price-asc">Price: Low to High</option>
-        <option value="price-desc">Price: High to Low</option>
-        <option value="name">Name A-Z</option>
-        <option value="rating">Top Rated</option>
-      </select>
+    <div class="flex items-center justify-between gap-3 mb-4">
+      <div class="flex items-center gap-3">
+        <label class="text-sm text-gray-500">Sort by:</label>
+        <select onchange="window.sortShopProducts(this.value)" class="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white">
+          <option value="default">Featured</option>
+          <option value="newest">Newest</option>
+          <option value="popular">Most Popular</option>
+          <option value="price-asc">Price: Low to High</option>
+          <option value="price-desc">Price: High to Low</option>
+          <option value="name">Name A-Z</option>
+          <option value="rating">Top Rated</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-1 border border-gray-200 rounded-lg overflow-hidden">
+        <button onclick="window.setShopView('grid')" id="shop-view-grid" class="p-1.5 bg-gray-100 text-ink" title="Grid view">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="1" width="5" height="5"/><rect x="8" y="1" width="7" height="5"/><rect x="1" y="8" width="5" height="7"/><rect x="8" y="8" width="7" height="7"/></svg>
+        </button>
+        <button onclick="window.setShopView('list')" id="shop-view-list" class="p-1.5 text-gray-400 hover:text-ink" title="List view">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="3" x2="15" y2="3"/><line x1="1" y1="8" x2="15" y2="8"/><line x1="1" y1="13" x2="15" y2="13"/></svg>
+        </button>
+      </div>
     </div>
     <div class="flex gap-8">
       <aside class="hidden md:block w-56 shrink-0">
@@ -1629,7 +1641,7 @@ function pageShop(){
           ${cats.map(c=>`<a href="${c==='All'?'#shopall':(CAT_HASH[c]||'#shop?cat='+encodeURIComponent(c))}" class="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium border ${activeCat===c ? 'bg-primary text-white border-primary' : 'border-gray-200'}">${c}</a>`).join('')}
         </div>
         ${list.length===0 ? emptyProductsMsg() : `
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+        <div class="shop-product-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
           ${list.map(([id,p])=>productCard(id,p)).join('')}
         </div>`}
       </div>
@@ -3507,6 +3519,8 @@ window.sortShopProducts = function(sortBy){
     const pB = idB ? State.products[idB] : null;
     if(!pA || !pB) return 0;
     switch(sortBy){
+      case 'newest': return (pB.createdAt||0) - (pA.createdAt||0);
+      case 'popular': return avgRating(pB) - avgRating(pA);
       case 'price-asc': return effPrice(pA) - effPrice(pB);
       case 'price-desc': return effPrice(pB) - effPrice(pA);
       case 'name': return (pA.name||'').localeCompare(pB.name||'');
@@ -3519,12 +3533,29 @@ window.sortShopProducts = function(sortBy){
 window.filterShopPrice = function(){
   const min = parseFloat(document.getElementById('price-min')?.value);
   const max = parseFloat(document.getElementById('price-max')?.value);
-  window._applyPriceFilter('.grid.grid-cols-2.md\\:grid-cols-3', min, max);
+  window._applyPriceFilter('.shop-product-grid', min, max);
 };
 window.filterShopPriceMobile = function(){
   const min = parseFloat(document.getElementById('price-min-m')?.value);
   const max = parseFloat(document.getElementById('price-max-m')?.value);
-  window._applyPriceFilter('.grid.grid-cols-2.md\\:grid-cols-3', min, max);
+  window._applyPriceFilter('.shop-product-grid', min, max);
+};
+window.setShopView = function(mode){
+  const grid = document.querySelector('.grid.grid-cols-2.md\\:grid-cols-3, .grid.grid-cols-2.md\\:grid-cols-3.lg\\:grid-cols-4');
+  const gBtn = document.getElementById('shop-view-grid');
+  const lBtn = document.getElementById('shop-view-list');
+  if(!grid) return;
+  if(mode === 'list'){
+    grid.classList.remove('grid-cols-2','md:grid-cols-3','lg:grid-cols-4');
+    grid.classList.add('grid-cols-1');
+    if(gBtn){ gBtn.classList.remove('bg-gray-100','text-ink'); gBtn.classList.add('text-gray-400'); }
+    if(lBtn){ lBtn.classList.add('bg-gray-100','text-ink'); lBtn.classList.remove('text-gray-400'); }
+  } else {
+    grid.classList.remove('grid-cols-1');
+    grid.classList.add('grid-cols-2','md:grid-cols-3','lg:grid-cols-4');
+    if(gBtn){ gBtn.classList.add('bg-gray-100','text-ink'); gBtn.classList.remove('text-gray-400'); }
+    if(lBtn){ lBtn.classList.remove('bg-gray-100','text-ink'); lBtn.classList.add('text-gray-400'); }
+  }
 };
 window._applyPriceFilter = function(gridSelector, min, max){
   const grid = document.querySelector(gridSelector);
