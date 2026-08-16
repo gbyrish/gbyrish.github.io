@@ -1490,6 +1490,21 @@ function pageHome(){
   })()}
 
   ${(() => {
+    const popular = Object.entries(State.products).filter(([id,p])=>!isDeal(p) && Number(p.stock||0) > 0 && (p.reviews && Object.keys(p.reviews).length >= 2)).sort((a,b) => avgRating(b[1]) - avgRating(a[1])).slice(0,4);
+    if(!popular.length) return '';
+    return `
+  <section class="max-w-7xl mx-auto px-4 md:px-8 py-14">
+    <div class="flex items-center justify-between mb-8">
+      <h2 class="font-serif text-2xl md:text-3xl">&#11088; Best Sellers</h2>
+      <a href="#shopall" class="text-primary text-sm font-medium underline">View All</a>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+      ${popular.map(([id,p])=>productCard(id,p)).join('')}
+    </div>
+  </section>`;
+  })()}
+
+  ${(() => {
     const recent = State.recentlyViewed.slice(0,4).map(id => State.products[id]).filter(Boolean);
     if(!recent.length) return '';
     return `
@@ -1684,6 +1699,14 @@ function pageProduct(id){
             <input type="email" name="email" required placeholder="Your email" class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm">
             <button class="btn-primary px-4 py-2 rounded-lg text-sm font-medium">Notify Me</button>
           </form>
+        </div>` : `
+        <div class="mt-4 p-4 bg-cream2 rounded-xl">
+          <p class="text-sm text-gray-600 mb-2">Want this at a lower price?</p>
+          <form onsubmit="event.preventDefault(); window.notifyPriceDrop('${id}', this.email.value)" class="flex gap-2">
+            <input type="email" name="email" required placeholder="Your email" class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            <button class="btn-accent px-4 py-2 rounded-lg text-sm font-medium">Price Alert</button>
+          </form>
+        </div>`}
         </div>` : ''}
       </div>
     </div>
@@ -2856,6 +2879,18 @@ window.notifyMe = async function(productId, email){
       productId, email, createdAt: Date.now(), notified: false
     }, { merge: true });
     toast('We will notify you when this product is back in stock!');
+  } catch(err) {
+    toast('Failed: ' + err.message, 'err');
+  }
+};
+window.notifyPriceDrop = async function(productId, email){
+  if(!requireFirebase()) return;
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('Enter a valid email','err'); return; }
+  try {
+    await setDoc(doc(db, 'notifications', 'price_' + productId + '_' + email.replace(/[^a-zA-Z0-9]/g,'_')), {
+      productId, email, type: 'price_drop', createdAt: Date.now(), notified: false
+    }, { merge: true });
+    toast('We will notify you when the price drops!');
   } catch(err) {
     toast('Failed: ' + err.message, 'err');
   }
