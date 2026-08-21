@@ -1,4 +1,4 @@
-// Halpish AI provider — Groq (primary, fast) with BlockRun fallback.
+// Halpish AI provider — SiliconFlow (primary) with Groq fallback.
 //
 // This is the ONLY module that talks to a model provider. Swapping models means
 // changing HALPISH_MODEL; swapping providers means changing this file. Nothing
@@ -7,16 +7,58 @@
 // The key is read from the environment on the server. It is never sent to the
 // browser and never appears in a response body.
 
+const SILICONFLOW_URL = 'https://api.siliconflow.cn/v1/chat/completions';
+
 export function modelName(){
-  return process.env.HALPISH_MODEL || 'qwen/qwen3.6-27b';
+  return process.env.HALPISH_MODEL || 'Qwen/Qwen2.5-72B-Instruct';
 }
 
-// Groq primary (fast, free tier).
+function siliconflowKey(){
+  return process.env.SILICONFLOW_API_KEY;
+}
+
+async function siliconflowCall({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
+  const key = siliconflowKey();
+  if(!key) return null;
+
+  const body = {
+    model: modelName(),
+    messages,
+    max_tokens: maxTokens,
+    temperature,
+    stream,
+  };
+  if(tools && tools.length){
+    body.tools = tools;
+    body.tool_choice = 'auto';
+  }
+
+  const res = await fetch(SILICONFLOW_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
+  });
+
+  if(!res.ok){
+    const text = await res.text().catch(() => '');
+    // 401/invalid key means the SiliconFlow key isn't set up yet — fall through
+    // to Groq instead of blocking the user.
+    if(res.status === 401 || res.status === 403) return null;
+    throw new ProviderError(`SiliconFlow ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
+  }
+  return stream ? res : await res.json();
+}
+
+// Groq fallback (fast, free tier).
 function groqKey(){
   return process.env.GROQ_API_KEY;
 }
 
-async function groqCall({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
+async function groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
   const key = groqKey();
   if(!key) return null;
 
@@ -45,113 +87,6 @@ async function groqCall({ messages, tools, stream, maxTokens, temperature, timeo
   if(!res.ok){
     const text = await res.text().catch(() => '');
     throw new ProviderError(`Groq ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
-  }
-  return stream ? res : await res.json();
-}
-
-// BlockRun fallback (wallet-based auth, no API key needed).
-const BLOCKRUN_URL = 'https://blockrun.ai/api/v1/chat/completions';
-
-function blockrunKey(){
-  return process.env.BLOCKRUN_API_KEY || null;
-}
-
-function blockrunHeaders(){
-  const key = blockrunKey();
-  const h = { 'Content-Type': 'application/json' };
-  if(key) h['Authorization'] = `Bearer ${key}`;
-  return h;
-}
-
-async function blockrunFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
-  const body = {
-    model: modelName(),
-    messages,
-    max_tokens: maxTokens,
-    temperature,
-    stream,
-  };
-  if(tools && tools.length){
-    body.tools = tools;
-    body.tool_choice = 'auto';
-  }
-
-  const res = await fetch(BLOCKRUN_URL, {
-    method: 'POST',
-    headers: blockrunHeaders(),
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
-  });
-
-  if(!res.ok){
-    const text = await res.text().catch(() => '');
-    throw new ProviderError(`BlockRun ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
-  }
-  return stream ? res : await res.json();
-}
-
-// Anthropic direct API is used as a secondary fallback.
-const ANTHROPIC_KEY = () => process.env.ANTHROPIC_API_KEY;
-
-async function anthropicFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
-  const key = ANTHROPIC_KEY();
-  if(!key) return null;
-
-  const antMessages = messages.map(m => {
-    if(m.role === 'user' || m.role === 'system') return { role: m.role, content: m.content };
-    if(m.role === 'assistant'){
-      const out = { role: 'assistant', content: [] };
-      if(m.content) out.content.push({ type: 'text', text: m.content });
-      for(const tc of (m.tool_calls || [])){
-        let args = tc.function?.arguments || '{}';
-        if(typeof args === 'string'){
-          try { args = JSON.parse(args); } catch { /* keep as string */ }
-        }
-        out.content.push({ type: 'tool_use', id: tc.id, name: tc.function?.name, input: args });
-      }
-      return out;
-    }
-    if(m.role === 'tool'){
-      return { role: 'user', content: [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content }] };
-    }
-    return { role: 'user', content: m.content };
-  });
-
-  const sysMessages = antMessages.filter(m => m.role === 'system');
-  const nonSys = antMessages.filter(m => m.role !== 'system');
-  const system = sysMessages.map(m => m.content).join('\n\n') || undefined;
-
-  const body = {
-    model: modelName(),
-    max_tokens: maxTokens,
-    temperature,
-    stream,
-    messages: nonSys,
-    ...(system ? { system } : {}),
-  };
-  if(tools && tools.length){
-    body.tools = tools.map(t => ({
-      name: t.function.name,
-      description: t.function.description || '',
-      input_schema: t.function.parameters || { type: 'object', properties: {} },
-    }));
-    body.tool_choice = { type: 'auto' };
-  }
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
-  });
-
-  if(!res.ok){
-    const text = await res.text().catch(() => '');
-    throw new ProviderError(`Anthropic ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
   }
   return stream ? res : await res.json();
 }
@@ -215,53 +150,15 @@ export async function chat({ messages, tools, stream = false, maxTokens = 1024, 
 
   let lastErr = null;
 
-  // Try Groq first (fast).
-  const groqRes = await groqCall({ messages, tools, stream, maxTokens, temperature, timeoutMs });
+  // Try SiliconFlow first.
+  const sfRes = await siliconflowCall({ messages, tools, stream, maxTokens, temperature, timeoutMs });
+  if(sfRes) return sfRes;
+
+  // SiliconFlow failed — try Groq fallback.
+  const groqRes = await groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs });
   if(groqRes) return groqRes;
 
-  // Groq failed — try BlockRun fallback.
-  for(let attempt = 1; attempt <= attempts; attempt++){
-    const timer = AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined;
-    let res;
-    try{
-      res = await fetch(BLOCKRUN_URL, {
-        method: 'POST',
-        headers: blockrunHeaders(),
-        body: JSON.stringify(body),
-        signal: timer,
-      });
-    }catch(err){
-      lastErr = new ProviderError(err?.name === 'TimeoutError' ? 'Model request timed out.' : `Network error: ${err?.message || err}`,
-        { kind: err?.name === 'TimeoutError' ? 'timeout' : 'network', retryable: true });
-      if(attempt < attempts){ await sleep(400 * attempt); continue; }
-      break;
-    }
-
-    if(res.ok){ return stream ? res : await res.json(); }
-
-    const text = await res.text().catch(() => '');
-    const { kind, retryable } = classify(res.status, text);
-    lastErr = new ProviderError(`BlockRun ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind, retryable });
-
-    if(retryable && attempt < attempts){
-      const ra = Number(res.headers.get('retry-after'));
-      await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 4000) : 2000 * attempt);
-      continue;
-    }
-
-    // On auth/billing errors, try next fallback.
-    if(['billing','auth'].includes(kind)){
-      continue;
-    }
-
-    throw lastErr;
-  }
-
-  // BlockRun also failed — try Anthropic.
-  const antRes = await anthropicFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs });
-  if(antRes) return antRes;
-
-  throw lastErr || new ProviderError('All AI providers failed. Set GROQ_API_KEY or BLOCKRUN_API_KEY.', { kind: 'config' });
+  throw lastErr || new ProviderError('No AI provider available. Set SILICONFLOW_API_KEY or GROQ_API_KEY.', { kind: 'config' });
 }
 
 /**
