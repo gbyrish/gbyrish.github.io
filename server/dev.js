@@ -107,5 +107,6 @@ createServer(async (req, res) => {
   }
 }).listen(PORT, () => {
   console.log(`Gbyrish dev server on http://localhost:${PORT}`);
-  console.log(`Halpish model: ${process.env.HALPISH_MODEL || 'nvidia/gpt-oss-120b'} | BlockRun ${process.env.BLOCKRUN_API_KEY ? 'loaded' : 'MISSING'}${process.env.GROQ_API_KEY ? ' | Groq fallback ready' : ''}${process.env.HALPISH_MOCK ? ' | MOCK provider' : ''}`);
+  const brKey = process.env.BLOCKRUN_API_KEY;
+  console.log(`Halpish model: ${process.env.HALPISH_MODEL || 'nvidia/gpt-oss-120b'} | BlockRun ${brKey ? 'loaded' : 'no key needed (wallet auth)'}${process.env.GROQ_API_KEY ? ' | Groq fallback ready' : ''}${process.env.HALPISH_MOCK ? ' | MOCK provider' : ''}`);
 });

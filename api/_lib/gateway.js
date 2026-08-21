@@ -13,8 +13,18 @@ export function modelName(){
   return process.env.HALPISH_MODEL || 'nvidia/gpt-oss-120b';
 }
 
+// BlockRun uses wallet-based auth (USDC on-chain).
+// If a BLOCKRUN_API_KEY / wallet address is provided, send it as Bearer.
+// If not, try the request without auth — some BlockRun endpoints accept it.
 function blockrunKey(){
   return process.env.BLOCKRUN_API_KEY || null;
+}
+
+function blockrunHeaders(){
+  const key = blockrunKey();
+  const h = { 'Content-Type': 'application/json' };
+  if(key) h['Authorization'] = `Bearer ${key}`;
+  return h;
 }
 
 // Groq is used as a fallback when BlockRun fails.
@@ -179,26 +189,17 @@ export async function chat({ messages, tools, stream = false, maxTokens = 1024, 
     body.tool_choice = 'auto';
   }
 
-  const brKey = blockrunKey();
   let lastErr = null;
 
-  // If BlockRun has no key configured, skip straight to Groq fallback.
-  if(!brKey){
-    const fb = await groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs });
-    if(fb) return fb;
-    throw new ProviderError('No AI provider configured. Set BLOCKRUN_API_KEY or GROQ_API_KEY.', { kind: 'config' });
-  }
-
+  // Always try BlockRun first (wallet-based, no API key needed).
+  // If a BLOCKRUN_API_KEY / wallet address is provided, it's sent as Bearer.
   for(let attempt = 1; attempt <= attempts; attempt++){
     const timer = AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined;
     let res;
     try{
       res = await fetch(BLOCKRUN_URL, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${brKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers: blockrunHeaders(),
         body: JSON.stringify(body),
         signal: timer,
       });
