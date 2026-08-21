@@ -1,0 +1,10 @@
+{
+  "name": "gbyrish-store",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Gbyrish e-commerce site with Halpish AI assistant (Groq primary, SambaNova + Anthropic fallback)",
+  "scripts": {
+    "dev": "node server/dev.js"
+  }
+}

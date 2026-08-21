@@ -67,11 +67,8 @@ tailwind.config = {
   @keyframes fadeOutToast { to{opacity:0; transform:translateY(-10px);} }
   input:focus, textarea:focus, select:focus { outline:none; box-shadow:0 0 0 3px rgba(139,111,78,.15); border-color:#8B6F4E; }
   .star { cursor:pointer; user-select:none; }
-  .skel { background:linear-gradient(90deg,#F5EDE4 25%,#EFE3D3 37%,#F5EDE4 63%); background-size:400% 100%; animation:skel 1.4s ease infinite; }
-  @keyframes skel { 0%{background-position:100% 50%} 100%{background-position:0 50%} }
   @keyframes cartBounce { 0%{transform:scale(1)} 30%{transform:scale(1.25)} 60%{transform:scale(0.95)} 100%{transform:scale(1)} }
   .cart-bounce { animation: cartBounce .4s ease; }
-  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
   .fade-in { animation: fadeIn .35s ease both; }
   .hide-scrollbar::-webkit-scrollbar{display:none;}
   .hide-scrollbar{-ms-overflow-style:none; scrollbar-width:none;}
@@ -145,21 +142,247 @@ tailwind.config = {
   .mobile-menu.open { opacity:1; pointer-events:auto; visibility:visible; }
   .mobile-menu .mmenu-panel { transform:translateX(-100%); transition:transform .3s cubic-bezier(.4,0,.2,1); }
   .mobile-menu.open .mmenu-panel { transform:translateX(0); }
+  .mobile-menu .mmenu-panel { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
   .line-through-sale { text-decoration:line-through; opacity:.7; }
   .sale-countdown { font-variant-numeric:tabular-nums; }
+
+  /* ===== Header quick-links slide bar =====
+     The nav had 11+ links in a justify-between row with no overflow handling, so at
+     narrow-desktop widths flexbox squeezed the logo and icons. Now the links live in
+     their own horizontally scrollable track and the logo/icons never shrink. */
+  .nav-strip { position:relative; flex:1 1 auto; min-width:0; }
+  .nav-strip > nav { display:flex; align-items:center; gap:1.6rem; overflow-x:auto; overflow-y:hidden;
+    padding:.85rem .3rem; scroll-behavior:smooth; scrollbar-width:none; -ms-overflow-style:none;
+    overscroll-behavior-x:contain; }
+  .nav-strip > nav::-webkit-scrollbar { display:none; }
+  .nav-strip > nav > a { flex:0 0 auto; white-space:nowrap; }
+  .nav-strip::before, .nav-strip::after { content:''; position:absolute; top:0; bottom:0; width:36px;
+    pointer-events:none; z-index:2; opacity:0; transition:opacity .25s ease; }
+  .nav-strip::before { left:0;  background:linear-gradient(90deg,#FDF8F3 25%,rgba(253,248,243,0)); }
+  .nav-strip::after  { right:0; background:linear-gradient(270deg,#FDF8F3 25%,rgba(253,248,243,0)); }
+  .nav-strip.can-l::before { opacity:1; }
+  .nav-strip.can-r::after  { opacity:1; }
+  .dark .nav-strip::before { background:linear-gradient(90deg,#0F0F0F 25%,rgba(15,15,15,0)); }
+  .dark .nav-strip::after  { background:linear-gradient(270deg,#0F0F0F 25%,rgba(15,15,15,0)); }
+  .nav-arrow { position:absolute; top:50%; transform:translateY(-50%); z-index:3; width:24px; height:24px;
+    border-radius:9999px; background:rgba(255,255,255,.9); box-shadow:0 2px 8px rgba(139,111,78,.25);
+    display:none; align-items:center; justify-content:center; font-size:14px; line-height:1; color:#8B6F4E; }
+  .nav-strip.can-l .nav-arrow.left, .nav-strip.can-r .nav-arrow.right { display:flex; }
+  .nav-arrow.left { left:-2px; } .nav-arrow.right { right:-2px; }
+  .dark .nav-arrow { background:rgba(30,30,30,.92); color:#E8A0BF; }
+
+  /* ===== Motion ===== */
+  @keyframes riseIn   { from{opacity:0; transform:translateY(18px)} to{opacity:1; transform:translateY(0)} }
+  @keyframes scaleIn  { from{opacity:0; transform:scale(.94)}      to{opacity:1; transform:scale(1)} }
+  @keyframes popIn    { 0%{transform:scale(0)} 70%{transform:scale(1.28)} 100%{transform:scale(1)} }
+  @keyframes floaty   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+
+  /* Route entrance — applied only when the hash route actually changes, so ordinary
+     re-renders (add to cart, auth resolving) don't replay the whole page animation. */
+  /* Two classes deep so it beats `.page.active { animation: fadeIn }` above. */
+  .page.page-enter { animation: riseIn .42s cubic-bezier(.22,.9,.3,1) both; }
+
+  /* Scroll reveal — sections and cards rise in as they enter the viewport. */
+  .reveal { opacity:0; transform:translateY(26px);
+    transition:opacity .6s cubic-bezier(.22,.9,.3,1), transform .6s cubic-bezier(.22,.9,.3,1); }
+  .reveal.in { opacity:1; transform:none; }
+
+  /* Tactile feedback */
+  button, a { transition:transform .18s ease, box-shadow .25s ease, background-color .25s ease, color .22s ease, opacity .2s ease; }
+  button:active:not(:disabled), a:active { transform:scale(.955); }
+  .btn-primary:not(:disabled):hover, .btn-accent:not(:disabled):hover { transform:translateY(-2px); box-shadow:0 12px 26px -10px rgba(139,111,78,.5); }
+
+  /* Ambient motion on the hero image + floating action buttons */
+  .floaty { animation: floaty 4.5s ease-in-out infinite; }
+
+  /* Badge count pop — replayed via .pop when the number changes */
+  .pop { animation: popIn .35s cubic-bezier(.3,1.4,.5,1) both; }
+
+  /* Drawers / overlays fade their backdrop instead of snapping */
+  #cart-drawer-root .drawer-backdrop, .search-overlay { transition:opacity .3s ease; }
+
+  /* ===== Halpish (AI helper) ===== */
+  /* Uses the same palette, fonts and radii as the rest of the site. */
+  #halpish-fab {
+    position:fixed; right:1rem; bottom:var(--fab-gap); z-index:60;
+    width:3.25rem; height:3.25rem; border-radius:9999px;
+    background:#8B6F4E; color:#fff; border:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 10px 26px -8px rgba(139,111,78,.65);
+    -webkit-user-select:none; user-select:none;
+    transition:transform .25s cubic-bezier(.22,.9,.3,1), background .2s;
+  }
+  #halpish-fab:hover { background:#6B5637; transform:translateY(-2px) scale(1.04); }
+  #halpish-fab .hp-fab-label {
+    position:absolute; right:calc(100% + .5rem); white-space:nowrap;
+    background:#2C2C2C; color:#fff; font-size:11px; font-weight:500;
+    padding:.3rem .6rem; border-radius:.5rem; opacity:0; pointer-events:none;
+    transition:opacity .2s;
+  }
+  #halpish-fab:hover .hp-fab-label { opacity:1; }
+  @media (max-width:767px){ #halpish-fab .hp-fab-label { display:none; } }
+
+  .hp-panel {
+    position:fixed; z-index:120; display:flex; flex-direction:column;
+    background:#FDF8F3; overflow:hidden;
+    inset:0;                                   /* mobile: full sheet */
+    opacity:0; visibility:hidden; transform:translateY(14px);
+    transition:opacity .22s ease, transform .28s cubic-bezier(.22,.9,.3,1), visibility .22s;
+  }
+  .hp-panel.open { opacity:1; visibility:visible; transform:none; }
+  @media (min-width:768px){
+    .hp-panel {
+      inset:auto 1.5rem 1.5rem auto; width:24rem; height:min(34rem, calc(100vh - 6rem));
+      border:1px solid #E8DFD5; border-radius:1.25rem;
+      box-shadow:0 26px 60px -20px rgba(44,44,44,.4);
+      transform:translateY(18px) scale(.98);
+    }
+    .hp-panel.open { transform:none; }
+    .hp-head { cursor: grab; }
+    .hp-head:active { cursor: grabbing; }
+    .hp-dragging { user-select: none; -webkit-user-select: none; }
+  }
+  .dark .hp-panel { background:#0F0F0F; border-color:#2A2A2A; }
+
+  .hp-head { display:flex; align-items:center; gap:.75rem; padding:.85rem 1rem;
+    border-bottom:1px solid #E8DFD5; background:#FDF8F3; }
+  .dark .hp-head { background:#141414; border-color:#2A2A2A; }
+  .hp-mark { width:2.1rem; height:2.1rem; border-radius:9999px; background:#8B6F4E; color:#fff;
+    display:flex; align-items:center; justify-content:center; font-family:'Playfair Display',serif;
+    font-size:.95rem; font-weight:600; flex-shrink:0; }
+  .hp-close { margin-left:auto; width:2rem; height:2rem; border:0; background:transparent;
+    color:#8a7f74; font-size:1.4rem; line-height:1; cursor:pointer; border-radius:.5rem; }
+  .hp-close:hover { background:#F5EDE4; color:#2C2C2C; }
+  .dark .hp-close:hover { background:#1F1F1F; color:#E5E5E5; }
+
+  .hp-log { flex:1; overflow-y:auto; padding:1rem; display:flex; flex-direction:column; gap:.7rem;
+    overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+  .hp-msg { max-width:88%; padding:.6rem .85rem; border-radius:1rem; font-size:.85rem; line-height:1.55;
+    white-space:pre-wrap; word-break:break-word; animation:hpIn .26s cubic-bezier(.22,.9,.3,1) both; }
+  @keyframes hpIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  .hp-msg.bot { align-self:flex-start; background:#F5EDE4; color:#2C2C2C; border-bottom-left-radius:.35rem; }
+  .hp-msg.me  { align-self:flex-end; background:#8B6F4E; color:#fff; border-bottom-right-radius:.35rem; }
+  .hp-msg.note { align-self:stretch; max-width:100%; background:#FFF7ED; color:#8a5a12;
+    border:1px solid #FDE9CE; font-size:.78rem; text-align:center; }
+  .dark .hp-msg.bot { background:#1C1C1C; color:#E5E5E5; }
+  .dark .hp-msg.note { background:#2A2008; color:#E8C88A; border-color:#3A2E10; }
+  .hp-msg a { color:#8B6F4E; font-weight:500; text-decoration:underline; text-underline-offset:2px; }
+  .hp-msg.me a { color:#fff; }
+  .dark .hp-msg a { color:#C9A87C; }
+
+  /* Progress line: names the lookup actually running, so it carries information
+     rather than just occupying the wait. */
+  .hp-status { align-self:flex-start; display:flex; align-items:center; gap:.45rem;
+    font-size:.75rem; color:#8a7f74; padding:.1rem .2rem; }
+  .hp-status i { width:.3rem; height:.3rem; border-radius:9999px; background:#8B6F4E; opacity:.35;
+    animation:hpDot 1.1s ease-in-out infinite; }
+  .hp-status i:nth-child(2){ animation-delay:.18s; }
+  .hp-status i:nth-child(3){ animation-delay:.36s; }
+  @keyframes hpDot { 0%,100%{ opacity:.25; transform:translateY(0); } 50%{ opacity:1; transform:translateY(-2px); } }
+
+  .hp-chips { display:flex; gap:.4rem; padding:0 1rem .6rem; flex-wrap:wrap; }
+  .hp-chip { border:1px solid #E8DFD5; background:#fff; color:#5c5147; border-radius:9999px;
+    padding:.34rem .7rem; font-size:.73rem; cursor:pointer; transition:background .18s, border-color .18s; }
+  .hp-chip:hover { background:#F5EDE4; border-color:#8B6F4E; }
+  .dark .hp-chip { background:#1A1A1A; border-color:#2A2A2A; color:#CFC7BE; }
+
+  .hp-form { display:flex; gap:.5rem; padding:.75rem 1rem;
+    flex-direction:column; }
+  .hp-form > * { flex-shrink:0; }
+  .hp-input-row { display:flex; gap:.5rem; align-items:center; }
+  .hp-img-row { display:flex; gap:.3rem; align-items:center; }
+  .hp-img-btn { width:2.25rem; height:2.25rem; border:0; background:transparent;
+    color:#8a7f74; cursor:pointer; border-radius:.5rem; display:flex; align-items:center;
+    justify-content:center; transition:background .15s; flex-shrink:0; }
+  .hp-img-btn:hover { background:rgba(139,111,78,.1); color:#8B6F4E; }
+  .dark .hp-img-btn:hover { background:rgba(255,255,255,.08); color:#a08860; }
+    padding-bottom:calc(.75rem + env(safe-area-inset-bottom));
+    border-top:1px solid #E8DFD5; background:#FDF8F3; }
+  .dark .hp-form { background:#141414; border-color:#2A2A2A; }
+  .hp-input { flex:1; border:1px solid #E8DFD5; border-radius:9999px; padding:.6rem .95rem;
+    font-family:'Poppins',sans-serif; font-size:.85rem; background:#fff; color:#2C2C2C; outline:none; }
+  .hp-input:focus { border-color:#8B6F4E; }
+  .dark .hp-input { background:#1A1A1A; border-color:#2A2A2A; color:#E5E5E5; }
+  .hp-send { width:2.5rem; height:2.5rem; border-radius:9999px; border:0; background:#8B6F4E; color:#fff;
+    cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:background .2s; }
+  .hp-send:hover:not(:disabled) { background:#6B5637; }
+  .hp-send:disabled { opacity:.45; cursor:default; }
+
+  /* Admin drafting panel, inside the existing product form */
+  .hp-draft-row { display:flex; justify-content:space-between; gap:.75rem; padding:.4rem 0;
+    border-bottom:1px dashed #E8DFD5; font-size:.8rem; }
+  .dark .hp-draft-row { border-color:#2A2A2A; }
+  .hp-draft-row span:first-child { color:#8a7f74; flex-shrink:0; }
+  .hp-draft-row span:last-child { text-align:right; }
+  .hp-draft-row.empty span:last-child { color:#b9ada1; font-style:italic; }
+  .hp-draft-box { border:1px solid #E8DFD5; background:#FDF8F3; border-radius:1rem; padding:1rem 1.25rem; }
+  .dark .hp-draft-box { border-color:#2A2A2A; background:#171717; }
+  .hp-draft-preview { animation:hpIn .28s ease both; }
+  .hp-draft-note { font-size:.75rem; color:#8a7f74; }
+  .hp-draft-work { display:inline-flex; align-items:center; gap:.35rem; font-size:.75rem; color:#8B6F4E; }
+  .hp-draft-work[hidden] { display:none; }   /* class sets inline-flex, so [hidden] needs saying */
+  .hp-draft-work i { width:4px; height:4px; border-radius:50%; background:currentColor;
+    display:inline-block; animation:hpDot 1.05s infinite ease-in-out; }
+  .hp-draft-work i:nth-child(2) { animation-delay:.16s; }
+  .hp-draft-work i:nth-child(3) { animation-delay:.32s; }
+
+  /* ===== Floating action buttons (Halpish, WhatsApp, back to top) =====
+     Every offset comes off one variable, so the whole cluster clears whatever is
+     pinned to the bottom of the viewport. Mobile has a 4rem bottom nav; desktop
+     has nothing, which is why a single hard-coded offset left these hanging in
+     mid-air on a wide screen. */
+  :root { --fab-gap: 5.25rem; }
+  /* The product page pins an add-to-cart bar above the nav, but only on mobile. */
+  body.has-sticky-bar { --fab-gap: 9.25rem; }
+  @media (min-width:768px){
+    :root, body.has-sticky-bar { --fab-gap: 1.5rem; }
+  }
+
+  .fab {
+    position:fixed; z-index:60; width:2.75rem; height:2.75rem; border-radius:9999px;
+    display:flex; align-items:center; justify-content:center; color:#fff;
+    box-shadow:0 10px 26px -10px rgba(44,44,44,.5);
+    -webkit-user-select:none; user-select:none; -webkit-user-drag:none;
+  }
+  /* The pointer belongs to the drag, so the browser must not claim it for a
+     scroll or a native link-drag first. */
+  .fab, #halpish-fab { touch-action:none; }
+  .fab-wa { left:1rem; bottom:var(--fab-gap); background:#22C55E; }
+  .fab-wa:hover { background:#16A34A; }
+  .fab-top { right:1rem; bottom:calc(var(--fab-gap) + 3.5rem); background:#8B6F4E;
+    opacity:0; pointer-events:none; transition:opacity .3s; }
+  .fab-top.show { opacity:1; pointer-events:auto; }
+  .fab-top:hover { background:#6B5637; }
+  /* While dragging, the idle bob and the hover lift would both fight the pointer. */
+  .fab-dragging, #halpish-fab.fab-dragging {
+    animation:none !important; transition:none !important;
+    transform:none !important; cursor:grabbing; opacity:.92;
+  }
+  .fab-reset { display:none; }
+  .fab-reset.show { display:block; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #halpish-fab, .hp-panel, .hp-msg, .hp-status i, .hp-draft-preview, .hp-draft-work i { animation:none !important; transition:none !important; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important;
+      transition-duration:.001ms !important; scroll-behavior:auto !important; }
+    .reveal { opacity:1 !important; transform:none !important; }
+  }
 </style>
 </head>
 <body class="bg-cream text-ink">
 
-<div id="app-root">
-  <div id="loading-screen" class="fixed inset-0 bg-cream flex flex-col items-center justify-center z-[9999]">
-    <img src="https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?q=80&w=200&auto=format&fit=crop" class="w-16 h-16 rounded-full object-cover mb-4 animate-pulse" onerror="this.style.display='none'">
-    <p class="font-serif text-xl text-primary">Gbyrish</p>
-    <p class="text-xs text-gray-400 mt-1">Loading...</p>
-  </div>
-</div>
+<div id="app-root"></div>
 <div id="toast-container" class="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[999] flex flex-col gap-2 items-center max-h-[60vh] overflow-hidden pointer-events-none"></div>
 <div id="modal-root"></div>
+<!-- Halpish lives outside #app-root on purpose: doRender() replaces app-root's
+     innerHTML wholesale, which would destroy an open chat mid-reply. -->
+<div id="halpish-root"></div>
+<!-- Same reason: the floating buttons are draggable, and a re-render would throw
+     away whatever position the customer put them in. Mounted once, never rebuilt. -->
+<div id="floating-root"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script type="module">
@@ -243,6 +466,9 @@ window.sendOrderEmail = async function(order, orderId){
 
 // Super Admins: always trusted, hardcoded, can't be removed from the UI.
 const ADMIN_EMAILS = ["ahmadasifkhan2023@gmail.com","gybrish@gmail.com","gbyrish@gmail.com"];
+
+// Store WhatsApp contact (+92 336 3611223) in wa.me international format — no + or spaces.
+const STORE_WHATSAPP = '923363611223';
 
 /* ---------------- Categories & Customization ---------------- */
 const CATEGORIES = ['Stainless Steel Jewelry','Bouquets (Customizable)','Customized Baskets','Wallet','Ring','Deals'];
@@ -404,7 +630,12 @@ if(db){
     State.dynamicAdmins = snap.docs.map(d=>d.id);
     if(State.user) State.isAdmin = computeIsAdmin(State.user);
     render();
-  }, (err)=>{ console.error('admins listener error:', err); });
+  }, (err)=>{
+    // Guests can't read 'admins' under the security rules, so permission-denied here is
+    // the expected path for every signed-out visitor — don't log it as an error.
+    if(err && err.code === 'permission-denied') return;
+    console.error('admins listener error:', err);
+  });
 }
 
 function requireFirebase(){
@@ -796,9 +1027,12 @@ function dealDiscountPercent(p){
   if(!dealHasOriginalPrice(p)) return 0;
   return Math.round((dealSavings(p) / Number(p.originalPrice)) * 100);
 }
+// Bottom-left of the image, not top-left: productCard's wishlist heart is pinned to
+// the card's top-left with z-20, so a badge up there is invisible to signed-in
+// customers — which is exactly who needs to see "Sold Out".
 function dealBadgeHtml(p){
   if(!isDeal(p) || !p.badge) return '';
-  return `<span class="absolute top-2 left-2 bg-accentDark text-white text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full shadow-sm">${escapeHtml(p.badge)}</span>`;
+  return `<span class="absolute bottom-2 left-2 bg-accentDark text-white text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full shadow-sm">${escapeHtml(p.badge)}</span>`;
 }
 function dealIncludedItemsHtml(p, full){
   const items = Array.isArray(p.includedItems) ? p.includedItems.filter(Boolean) : [];
@@ -1168,37 +1402,6 @@ window.switchAuthTab = function(tab){
   }
 };
 window.closeModalFn = closeModal;
-window.openQuickView = function(id){
-  const p = State.products[id];
-  if(!p) return;
-  const images = p.images && p.images.length ? p.images : [p.image];
-  const rating = avgRating(p);
-  const reviews = p.reviews ? Object.entries(p.reviews) : [];
-  document.getElementById('modal-root').innerHTML = `
-  <div class="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4" onclick="if(event.target===this) window.closeModalFn()">
-    <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto relative shadow-2xl" onclick="event.stopPropagation()">
-      <button onclick="window.closeModalFn()" class="absolute top-4 right-4 text-gray-400 hover:text-ink text-2xl z-10 bg-white/80 rounded-full w-8 h-8 flex items-center justify-center">&times;</button>
-      <div class="grid md:grid-cols-2">
-        <div class="aspect-square bg-cream2">
-          <img src="${images[0]||''}" onerror="this.src='https://via.placeholder.com/600x600?text=Gbyrish'" class="w-full h-full object-cover rounded-t-2xl md:rounded-l-2xl md:rounded-tr-none">
-        </div>
-        <div class="p-6">
-          <p class="text-xs uppercase tracking-widest text-accentDark mb-1">${escapeHtml(p.category||'')}</p>
-          <h2 class="font-serif text-xl md:text-2xl mb-2">${escapeHtml(p.name)}</h2>
-          <div class="flex items-center gap-1 mb-2 text-amber-500 text-sm">${starString(rating)} <span class="text-gray-400 text-xs">(${reviews.length} review${reviews.length!==1?'s':''})</span></div>
-          <p class="text-2xl font-semibold text-primary mb-4">${isDeal(p) && dealHasOriginalPrice(p) ? `<span class="line-through-sale text-gray-400 text-base font-normal mr-2">${money(p.originalPrice)}</span> ${money(p.price)}` : (Number(p.discountPercent||0)>0 ? `<span class="line-through-sale text-gray-400 text-base font-normal mr-2">${money(p.price)}</span> ${money(effPrice(p))}` : money(p.price))}</p>
-          <p class="text-gray-600 text-sm leading-relaxed mb-4">${escapeHtml(p.description||'')}</p>
-          <p class="text-sm mb-4 ${Number(p.stock)<=0 ? 'text-red-500' : (Number(p.stock)<10 ? 'text-amber-600 font-medium' : 'text-green-600')}">${Number(p.stock)<=0 ? 'Out of Stock' : (Number(p.stock)<10 ? 'Only ' + p.stock + ' left' : 'In Stock')}</p>
-          <div class="flex gap-2">
-            <a href="#product/${id}" onclick="window.closeModalFn()" class="btn-accent flex-1 py-3 rounded-xl font-medium text-sm text-center">View Details</a>
-            ${Number(p.stock)>0 ? `<button onclick="window.addToCartFromDetail('${id}'); window.closeModalFn()" class="btn-primary flex-1 py-3 rounded-xl font-medium text-sm">Add to Cart</button>` : ''}
-          </div>
-          ${Number(p.stock)<=0 ? `<div class="mt-3 p-3 bg-cream2 rounded-xl"><form onsubmit="event.preventDefault(); window.notifyMe('${id}', this.email.value)" class="flex gap-2"><input type="email" name="email" required placeholder="Your email" class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"><button class="btn-primary px-4 py-2 rounded-lg text-sm font-medium">Notify Me</button></form></div>` : ''}
-        </div>
-      </div>
-    </div>
-  </div>`;
-};
 window.doGoogleLogin = doGoogleLogin;
 window.doEmailLogin = doEmailLogin;
 window.doEmailSignup = doEmailSignup;
@@ -1213,31 +1416,34 @@ function Header(){
   return `
   <header class="sticky top-0 z-40 bg-cream/95 backdrop-blur border-b border-[#E8DFD5]">
     <div class="max-w-7xl mx-auto px-4 md:px-8">
-      <div class="flex items-center justify-between h-16 md:h-20">
-        <div class="flex items-center gap-3">
+      <div class="flex items-center justify-between gap-2 md:gap-4 h-16 md:h-20">
+        <div class="flex items-center gap-3 shrink-0">
           <button onclick="window.toggleMobileMenu()" class="md:hidden p-2 -ml-2">
             <svg width="24" height="24" fill="none" stroke="#2C2C2C" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
           </button>
-          <a href="#home" class="flex items-center leading-none"><img src="${siteLogo()}" alt="gbyrish" class="h-10 md:h-14 w-auto object-contain"></a>
+          <a href="#home" class="flex items-center leading-none shrink-0"><img src="${siteLogo()}" alt="gbyrish" class="h-10 md:h-14 w-auto max-w-none object-contain"></a>
         </div>
-        <nav class="hidden md:flex items-center gap-8 text-sm font-medium tracking-wide uppercase">
-          <a href="#home" class="navlink hover:text-primary">Home</a>
-          <a href="#shopall" class="navlink hover:text-primary">Shop All</a>
-          <a href="#jewelry" class="navlink hover:text-primary">Jewellery</a>
-          <a href="#customized" class="navlink hover:text-primary">Wallet</a>
-          <a href="#giftbaskets" class="navlink hover:text-primary">Gift Baskets</a>
-          <a href="#bouquets" class="navlink hover:text-primary">Bouquets</a>
-          <a href="#customrings" class="navlink hover:text-primary">Ring</a>
-          <a href="#deals" class="navlink hover:text-primary text-accentDark">Deals</a>
-          <a href="#trackorder" class="navlink hover:text-primary">Track Order</a>
-          <a href="#faq" class="navlink hover:text-primary">FAQ</a>
-          <a href="#size-guide" class="navlink hover:text-primary">Size Guide</a>
-          ${State.isAdmin ? '<a href="#admin" class="navlink hover:text-accentDark text-accentDark">Admin</a>' : ''}
-        </nav>
-        <div class="flex items-center gap-1 md:gap-4">
+        <div class="nav-strip hidden md:block" id="nav-strip">
+          <button type="button" class="nav-arrow left" onclick="window.navStripNudge(-1)" aria-label="Scroll links left">&#8249;</button>
+          <nav id="nav-track" onscroll="window.navStripSync()" class="text-sm font-medium tracking-wide uppercase">
+            <a href="#home" class="navlink hover:text-primary">Home</a>
+            <a href="#shopall" class="navlink hover:text-primary">Shop All</a>
+            <a href="#jewelry" class="navlink hover:text-primary">Jewellery</a>
+            <a href="#customized" class="navlink hover:text-primary">Wallet</a>
+            <a href="#giftbaskets" class="navlink hover:text-primary">Gift Baskets</a>
+            <a href="#bouquets" class="navlink hover:text-primary">Bouquets</a>
+            <a href="#customrings" class="navlink hover:text-primary">Ring</a>
+            <a href="#deals" class="navlink hover:text-primary text-accentDark">Deals</a>
+            <a href="#trackorder" class="navlink hover:text-primary">Track Order</a>
+            <a href="#faq" class="navlink hover:text-primary">FAQ</a>
+            ${State.isAdmin ? '<a href="#admin" class="navlink hover:text-accentDark text-accentDark">Admin</a>' : ''}
+          </nav>
+          <button type="button" class="nav-arrow right" onclick="window.navStripNudge(1)" aria-label="Scroll links right">&#8250;</button>
+        </div>
+        <div class="flex items-center gap-1 md:gap-4 shrink-0">
           <button onclick="window.toggleNotifPanel()" class="p-2 hover:text-primary relative" title="Notifications">
             <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            ${State.orderNotifications.filter(n=>!n.read).length > 0 ? `<span class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full">${State.orderNotifications.filter(n=>!n.read).length}</span>` : ''}
+            ${State.orderNotifications.filter(n=>!n.read).length > 0 ? `<span class="notif-badge absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full">${State.orderNotifications.filter(n=>!n.read).length}</span>` : ''}
           </button>
           <button onclick="window.openSearch()" class="p-2 hover:text-primary" title="Search">
             <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="7"/><path d="M14.5 14.5L19 19"/></svg>
@@ -1356,6 +1562,14 @@ window.doSearch = function(q){
     </a>`).join('');
 };
 window.openSearch = function(){ State.searchOpen = !State.searchOpen; render(); if(State.searchOpen) setTimeout(()=>document.getElementById('search-input')?.focus(),50); };
+window.toggleMobileShopFilters = function(){
+  const panel = document.getElementById('mobile-filter-panel');
+  const chevron = document.getElementById('filter-chevron');
+  if(!panel) return;
+  const open = panel.classList.toggle('hidden');
+  if(chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+};
+
 window.toggleMobileMenu = function(){
   const ov = document.getElementById('mobile-menu-overlay');
   if(!ov) return;
@@ -1585,6 +1799,10 @@ function emptyProductsMsg(){
   </div>`;
 }
 
+// The whole card is wrapped in <a href="#product/id">, so a click goes straight to
+// the product page. The only overlays are the wishlist heart and compare toggle —
+// there is deliberately no quick-view preview and no add-to-cart button on the
+// image, both of which used to intercept that click.
 function productCard(id,p){
   const rating = avgRating(p);
   const wished = State.user && State.wishlist.includes(id);
@@ -1593,7 +1811,7 @@ function productCard(id,p){
     <a href="#product/${id}" class="block">
       <div class="aspect-square overflow-hidden bg-cream2 relative">
         <img src="${p.image||'https://via.placeholder.com/400x400?text=Gbyrish'}" onerror="this.src='https://via.placeholder.com/400x400?text=Gbyrish'" class="prod-img w-full h-full object-cover" loading="lazy">
-        ${Number(p.stock)<=0 ? '<span class="absolute top-2 left-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full">Sold Out</span>' : (isDeal(p) && p.badge ? dealBadgeHtml(p) : (Number(p.stock)<10 ? `<span class="absolute top-2 left-2 bg-amber-500 text-white text-[10px] px-2 py-1 rounded-full">Only ${p.stock} left</span>` : ''))}
+        ${Number(p.stock)<=0 ? '<span class="absolute bottom-2 left-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full">Sold Out</span>' : (isDeal(p) && p.badge ? dealBadgeHtml(p) : (Number(p.stock)<10 ? `<span class="absolute bottom-2 left-2 bg-amber-500 text-white text-[10px] px-2 py-1 rounded-full">Only ${p.stock} left</span>` : ''))}
         ${isDeal(p) && dealDiscountPercent(p)>0 ? `<span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-semibold">-${dealDiscountPercent(p)}%</span>` : (Number(p.discountPercent||0)>0 ? `<span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-semibold">-${p.discountPercent}%</span>` : (saleState()==='active' && salePercent()>0 ? `<span class="absolute top-2 right-2 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-semibold">-${salePercent()}%</span>` : ''))}
       </div>
       <div class="p-3 md:p-4">
@@ -1604,15 +1822,8 @@ function productCard(id,p){
         ${(isDeal(p) && dealSavings(p)>0) || Number(p.discountPercent||0)>0 ? `<p class="text-[11px] text-green-600 font-medium mt-0.5">Save ${money(Number(p.price||0) - effPrice(p))}</p>` : ''}
       </div>
     </a>
-    ${State.user ? `<button onclick="window.toggleWishlist('${id}', event)" class="absolute top-2 left-2 z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-lg hover:bg-white transition" title="${wished?'Remove from wishlist':'Add to wishlist'}">${wished?'&#9829;':'&#9825;'}</button>` : ''}
-    ${State.user ? `<button onclick="window.toggleCompare('${id}')" class="absolute top-2 ${wished?'left-12':'left-2'} z-10 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-xs font-bold hover:bg-white transition" title="Compare" style="font-size:10px">&#8644;</button>` : ''}
-    ${Number(p.stock)>0 ? `<button onclick="event.preventDefault(); event.stopPropagation(); window.addToCart('${id}', 1, {}); toast('Added to cart!')" class="absolute bottom-2 left-2 z-10 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primaryDark transition shadow-lg" title="Quick add to cart"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 7h12M7 1v12"/></svg></button>` : ''}
-    <button onclick="event.preventDefault(); event.stopPropagation(); window.openQuickView('${id}')" class="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20" title="Quick View">
-      <span class="bg-white text-ink text-xs font-medium px-4 py-2 rounded-full shadow-lg">Quick View</span>
-    </button>
-    <button onclick="event.preventDefault(); event.stopPropagation(); window.openQuickView('${id}')" class="absolute bottom-2 right-2 z-10 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center md:hidden" title="Quick View">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="2"/><path d="M1 1l5 5M13 1l-5 5M1 13l5-5M13 13l-5-5"/></svg>
-    </button>
+    ${State.user ? `<button onclick="window.toggleWishlist('${id}', event)" class="absolute top-2 left-2 z-20 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-lg hover:bg-white transition" title="${wished?'Remove from wishlist':'Add to wishlist'}">${wished?'&#9829;':'&#9825;'}</button>` : ''}
+    ${State.user ? `<button onclick="window.toggleCompare('${id}')" class="absolute top-2 left-12 z-20 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-xs font-bold hover:bg-white transition" title="Compare" style="font-size:10px">&#8644;</button>` : ''}
   </div>`;
 }
 function avgRating(p){
@@ -1668,7 +1879,7 @@ function pageShop(){
     <div class="flex items-center justify-between gap-3 mb-4">
       <div class="flex items-center gap-3">
         <label class="text-sm text-gray-500">Show:</label>
-        <select onchange="State.shopPerPage=parseInt(this.value);State.shopPage=1;render()" class="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white">
+        <select onchange="window.setShopPerPage(this.value)" class="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white">
           <option value="8" ${State.shopPerPage===8?'selected':''}>8</option>
           <option value="12" ${State.shopPerPage===12?'selected':''}>12</option>
           <option value="24" ${State.shopPerPage===24?'selected':''}>24</option>
@@ -1698,7 +1909,7 @@ function pageShop(){
         </div>
       </div>
     </div>
-    <div class="flex gap-8">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-8">
       <aside class="hidden md:block w-56 shrink-0">
         <h3 class="font-medium mb-3 text-sm uppercase tracking-wide text-gray-500">Categories</h3>
         <div class="flex flex-col gap-2 mb-8">
@@ -1719,11 +1930,18 @@ function pageShop(){
         <input id="price-max-m" type="number" placeholder="Max" min="0" class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" oninput="window.filterShopPriceMobile()">
       </div>
       <div class="flex-1">
-        <div class="flex md:hidden gap-1.5 overflow-x-auto hide-scrollbar pb-3 mb-1">
-          ${cats.map(c=>`<a href="${c==='All'?'#shopall':(CAT_HASH[c]||'#shop?cat='+encodeURIComponent(c))}" class="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium border ${activeCat===c ? 'bg-primary text-white border-primary' : 'border-gray-200'}">${c}</a>`).join('')}
+        <div class="md:hidden mb-3">
+          <button onclick="window.toggleMobileShopFilters()" class="flex items-center gap-2 text-sm font-medium text-gray-600 mb-2" id="mobile-filter-toggle">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+            Categories ${activeCat!=='All'?'<span class="text-primary">('+escapeHtml(activeCat)+')</span>':''}
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" class="ml-auto transition-transform" id="filter-chevron"><path d="M3 6l4 4 4-4"/></svg>
+          </button>
+          <div id="mobile-filter-panel" class="hidden gap-1.5 overflow-x-auto hide-scrollbar pb-2">
+            ${cats.map(c=>`<a href="${c==='All'?'#shopall':(CAT_HASH[c]||'#shop?cat='+encodeURIComponent(c))}" class="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium border ${activeCat===c ? 'bg-primary text-white border-primary' : 'border-gray-200'}">${c}</a>`).join('')}
+          </div>
         </div>
         ${pageItems.length===0 ? emptyProductsMsg() : `
-        <div class="shop-product-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+        <div class="shop-product-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
           ${pageItems.map(([id,p])=>productCard(id,p)).join('')}
         </div>`}
         ${paginationHtml}
@@ -1802,7 +2020,6 @@ function pageProduct(id){
             <button class="btn-accent px-4 py-2 rounded-lg text-sm font-medium">Price Alert</button>
           </form>
         </div>`}
-        </div>` : ''}
       </div>
     </div>
 
@@ -2031,7 +2248,7 @@ function pageCheckout(){
           </div>
           ${addrs.length > 0 ? addrs.map(a=>`
             <label class="flex items-start gap-3 border ${selAddr?.id===a.id?'border-primary bg-primary/5':'border-gray-200'} rounded-xl p-3 mb-2 cursor-pointer">
-              <input type="radio" name="selectedAddr" value="${a.id}" ${selAddr?.id===a.id?'checked':''} onchange="State._selectedAddress='${a.id}';render()" class="mt-1">
+              <input type="radio" name="selectedAddr" value="${a.id}" ${selAddr?.id===a.id?'checked':''} onchange="window.selectAddress('${a.id}')" class="mt-1">
               <div class="flex-1">
                 <p class="text-sm font-medium">${escapeHtml(a.name)} ${a.isDefault?'<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full ml-1">Default</span>':''}</p>
                 <p class="text-xs text-gray-500">${escapeHtml(a.address)}, ${escapeHtml(a.city)}, ${escapeHtml(a.state)} ${escapeHtml(a.zip||'')}</p>
@@ -2112,7 +2329,7 @@ function pageCheckout(){
         <div class="bg-cream2 rounded-2xl p-5 md:p-6 md:sticky md:top-24">
           <h3 class="font-medium mb-4">Order Summary</h3>
           <div class="space-y-3 max-h-64 overflow-y-auto mb-4">
-            ${State.cart.map(c=>{ const p=State.products[c.id]; if(!p){ return `<div class="flex gap-3 items-center text-sm text-gray-400"><div class="w-12 h-12 rounded-lg bg-cream2 animate-pulse"></div><div class="flex-1"><p>Loading...</p></div></div>`; } return `
+            ${State.cart.map(c=>{ const p=State.products[c.id]; if(!p){ return ''; } return `
               <div class="flex gap-3 items-center text-sm">
                 <img src="${p.image||'https://via.placeholder.com/48x48?text=Gbyrish'}" onerror="this.src='https://via.placeholder.com/48x48?text=Gbyrish'" class="w-12 h-12 rounded-lg object-cover bg-white">
                 <div class="flex-1"><p>${escapeHtml(p.name)}</p><p class="text-gray-500 text-xs">Qty ${c.qty}${optsSummary(c.opts)? ' &middot; '+optsSummary(c.opts):''}</p></div>
@@ -2466,7 +2683,7 @@ function pageProfile(){
     <div class="mb-8">
       <div class="flex items-center justify-between mb-3">
         <h2 class="font-serif text-lg">Recently Viewed</h2>
-        <button onclick="State.recentlyViewed=[];saveRecentlyViewed();render()" class="text-xs text-gray-400 hover:text-red-500 underline">Clear</button>
+        <button onclick="window.clearRecentlyViewed()" class="text-xs text-gray-400 hover:text-red-500 underline">Clear</button>
       </div>
       <div class="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
         ${State.recentlyViewed.slice(0,8).map(id=>{
@@ -2649,54 +2866,9 @@ function pageFAQ(){
   </div>`;
 }
 
-/* ---------------- Page: Size Guide ---------------- */
-function pageSizeGuide(){
-  return `
-  <div class="max-w-3xl mx-auto px-4 py-8 md:py-12">
-    <div class="text-xs text-gray-400 mb-2"><a href="#home" class="hover:text-primary">Home</a><span>/</span><span>Size Guide</span></div>
-    <h1 class="font-serif text-2xl md:text-4xl mb-2">Size Guide</h1>
-    <p class="text-gray-500 text-sm mb-8">Find your perfect fit with our size charts below.</p>
-    <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-8">
-      <div class="bg-cream2 px-5 py-3 font-medium text-sm">Jewellery &mdash; Ring Sizes</div>
-      <div class="overflow-x-auto"><table class="w-full text-sm">
-        <thead><tr class="border-b border-gray-100"><th class="text-left py-3 px-4 text-xs text-gray-500">Size</th><th class="text-left py-3 px-4 text-xs text-gray-500">US</th><th class="text-left py-3 px-4 text-xs text-gray-500">EU</th><th class="text-left py-3 px-4 text-xs text-gray-500">Diameter (mm)</th></tr></thead>
-        <tbody>
-          ${[['6',6,46.8],['7',7,48.4],['8',8,50],['9',9,51.8],['10',10,53.5],['11',11,55.2],['12',12,56.9]].map(([s,us,mm])=>`<tr class="border-b border-gray-50"><td class="py-2.5 px-4">${s}</td><td class="py-2.5 px-4">${us}</td><td class="py-2.5 px-4">${Math.round(mm*0.833)}</td><td class="py-2.5 px-4">${mm}</td></tr>`).join('')}
-        </tbody>
-      </table></div>
-    </div>
-    <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-8">
-      <div class="bg-cream2 px-5 py-3 font-medium text-sm">Bracelets &mdash; Wrist Size</div>
-      <div class="overflow-x-auto"><table class="w-full text-sm">
-        <thead><tr class="border-b border-gray-100"><th class="text-left py-3 px-4 text-xs text-gray-500">Size</th><th class="text-left py-3 px-4 text-xs text-gray-500">Wrist (cm)</th><th class="text-left py-3 px-4 text-xs text-gray-500">Wrist (inches)</th></tr></thead>
-        <tbody>
-          ${[['S','14-15','5.5-6'],['M','16-17','6.3-6.7'],['L','18-19','7.1-7.5'],['XL','20-21','7.9-8.3']].map(([s,cm,inc])=>`<tr class="border-b border-gray-50"><td class="py-2.5 px-4">${s}</td><td class="py-2.5 px-4">${cm}</td><td class="py-2.5 px-4">${inc}</td></tr>`).join('')}
-        </tbody>
-      </table></div>
-    </div>
-    <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-8">
-      <div class="bg-cream2 px-5 py-3 font-medium text-sm">Necklaces &mdash; Chain Length</div>
-      <div class="overflow-x-auto"><table class="w-full text-sm">
-        <thead><tr class="border-b border-gray-100"><th class="text-left py-3 px-4 text-xs text-gray-500">Length</th><th class="text-left py-3 px-4 text-xs text-gray-500">Style</th><th class="text-left py-3 px-4 text-xs text-gray-500">Fits</th></tr></thead>
-        <tbody>
-          ${[['16 inch','Choker','High on neck'],['18 inch','Princess','Base of neck'],['20 inch','Matinee','Below collarbone'],['24 inch','Opera','Below bust'],['30 inch','Rope','Waist/cinched']].map(([l,s,f])=>`<tr class="border-b border-gray-50"><td class="py-2.5 px-4">${l}</td><td class="py-2.5 px-4">${s}</td><td class="py-2.5 px-4">${f}</td></tr>`).join('')}
-        </tbody>
-      </table></div>
-    </div>
-    <p class="text-xs text-gray-400 text-center">Not sure about your size? Message us on Instagram and we will help!</p>
-  </div>`;
-}
-
-/* ---------------- Page: Compare ---------------- */
-  State.compareList = [];
-  localStorage.setItem('gbyrish_compare', '[]');
-  toast('Comparison cleared');
-  render();
-};
-
 /* ---------------- Admin Pages ---------------- */
 function adminNav(active){
-  const items = [['#admin','Dashboard'],['#admin/sale','Sale Event'],['#admin/discounts','Spend Discount'],['#admin/product','Add Product'],['#admin/inventory','Inventory'],['#admin/orders','Orders'],['#admin/trash','Recycle Bin'],['#admin/settings','Site Settings']];
+  const items = [['#admin','Dashboard'],['#admin/sale','Sale Event'],['#admin/discounts','Spend Discount'],['#admin/product','Add Product'],['#admin/inventory','Inventory'],['#admin/orders','Orders'],['#admin/agent','AI Agent'],['#admin/trash','Recycle Bin'],['#admin/settings','Site Settings']];
   return `<div class="flex gap-2 overflow-x-auto hide-scrollbar mb-8">
     ${items.map(([h,l])=>`<a href="${h}" class="shrink-0 px-5 py-2.5 rounded-full text-sm font-medium ${active===h? 'bg-primary text-white':'bg-cream2 text-ink'}">${l}</a>`).join('')}
   </div>`;
@@ -2834,10 +3006,12 @@ function pageAdminProduct(editId){
   if(!requireAdmin()) return '';
   const editing = editId ? State.products[editId] : null;
   initPendingImagesIfNeeded(editId, editing);
+  resetHalpishDraftIfNeeded(editId);
   return `
   <div class="max-w-3xl mx-auto px-4 py-8 md:py-12">
     <h1 class="font-serif text-2xl md:text-3xl mb-6">${editing ? 'Edit Product' : 'Add New Product'}</h1>
     ${adminNav('#admin/product')}
+    ${halpishDraftBoxHtml()}
     <form id="product-form" onsubmit="event.preventDefault(); window.saveProduct(this, '${editId||''}')" class="bg-white border border-gray-100 rounded-2xl p-6 space-y-5">
       <div>
         <label class="text-sm font-medium block mb-1">Product Name</label>
@@ -2934,6 +3108,157 @@ function renderImagePreviewGrid(){
   if(!grid) return;
   grid.innerHTML = imagePreviewGridHtml();
 }
+
+/* ---------- Halpish product drafting (admin only) ----------
+   Sends the admin's plain-text description to the gated admin_draft endpoint and
+   shows what came back as a read-only preview. Nothing is written to Firestore
+   here: the admin presses "Fill the form", checks the values, adds photos with
+   the existing picker, then submits the form themselves. Photos are never sent
+   to the model — only the typed description is. */
+let halpishDraftData = null;
+let halpishDraftFor;
+
+// Cleared only when switching to a different product, matching how pendingImages
+// behaves — a background re-render must not throw away a draft the admin is
+// still reading.
+function resetHalpishDraftIfNeeded(editId){
+  const key = editId || '__new__';
+  if(halpishDraftFor !== key){ halpishDraftData = null; halpishDraftFor = key; }
+}
+
+function halpishDraftRow(label, value, hint){
+  const empty = value === null || value === undefined || value === '' || (Array.isArray(value) && !value.length);
+  const shown = empty ? (hint || 'left blank') : (Array.isArray(value) ? value.join(', ') : String(value));
+  return `<div class="hp-draft-row${empty?' empty':''}"><span>${escapeHtml(label)}</span><span>${escapeHtml(shown)}</span></div>`;
+}
+
+function halpishDraftPreviewHtml(){
+  const d = halpishDraftData;
+  if(!d) return '';
+  const money = (n) => (n === null || n === undefined) ? null : 'Rs. ' + Number(n).toLocaleString('en-US');
+  const isDeal = d.category === 'Deals';
+  return `
+  <div class="hp-draft-preview mt-4 bg-white border border-gray-100 rounded-xl p-4">
+    <p class="text-sm font-medium mb-2">Draft preview</p>
+    ${halpishDraftRow('Name', d.name)}
+    ${halpishDraftRow('Category', d.category, 'not recognised, pick one yourself')}
+    ${halpishDraftRow('Price', money(d.price), 'no price given')}
+    ${halpishDraftRow('Stock', d.stock, 'no stock count given')}
+    ${halpishDraftRow('Customization note', d.customizable ? 'Enabled' : 'Off')}
+    ${isDeal ? halpishDraftRow('Combined value', money(d.originalPrice)) : ''}
+    ${isDeal ? halpishDraftRow('Badge', d.badge) : ''}
+    ${isDeal ? halpishDraftRow('Included items', d.includedItems) : ''}
+    <p class="text-xs text-gray-400 mt-3 mb-1">Description</p>
+    <p class="text-sm text-gray-600 leading-relaxed">${escapeHtml(d.description || 'left blank')}</p>
+    ${d.notes ? `<p class="hp-draft-note mt-3">Halpish notes: ${escapeHtml(d.notes)}</p>` : ''}
+    <p class="hp-draft-note mt-1">Nothing has been saved. Photos are not part of the draft, add them under Product Images below.</p>
+    <div class="flex flex-wrap gap-2 mt-4">
+      <button type="button" onclick="window.halpishDraftApply()" class="btn-primary px-4 py-2.5 rounded-xl text-sm font-medium">Fill the form with this</button>
+      <button type="button" onclick="window.halpishDraftDiscard()" class="px-4 py-2.5 rounded-xl text-sm border border-gray-200 hover:bg-cream2">Discard draft</button>
+    </div>
+  </div>`;
+}
+
+function halpishDraftBoxHtml(){
+  return `
+  <div class="hp-draft-box mb-6">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-sm font-medium">Draft this listing with Halpish</p>
+        <p class="hp-draft-note mt-0.5">Describe the piece in your own words. Halpish fills in the fields below for you to check.</p>
+      </div>
+      <span id="halpish-draft-status" class="hp-draft-work" hidden><span>Drafting the listing</span><i></i><i></i><i></i></span>
+    </div>
+    <textarea id="halpish-draft-input" rows="3" placeholder="e.g. stainless steel rope chain bracelet, gold tone, adjustable, Rs. 850, 4 in stock" class="w-full mt-3 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white"></textarea>
+    <div class="flex flex-wrap items-center gap-2 mt-2">
+      <button type="button" id="halpish-draft-btn" onclick="window.halpishDraftRun()" class="btn-primary px-4 py-2.5 rounded-xl text-sm font-medium">Draft with Halpish</button>
+      <span class="hp-draft-note">You review and publish. Halpish never saves a product.</span>
+    </div>
+    <div id="halpish-draft-out">${halpishDraftPreviewHtml()}</div>
+  </div>`;
+}
+
+function renderHalpishDraft(){
+  const out = document.getElementById('halpish-draft-out');
+  if(out) out.innerHTML = halpishDraftPreviewHtml();
+}
+
+window.halpishDraftRun = async function(){
+  const input = document.getElementById('halpish-draft-input');
+  const btn = document.getElementById('halpish-draft-btn');
+  const status = document.getElementById('halpish-draft-status');
+  if(!input || !btn) return;
+
+  const message = input.value.trim();
+  if(!message){ toast('Describe the product first.','err'); input.focus(); return; }
+
+  btn.disabled = true;
+  btn.classList.add('opacity-50');
+  if(status) status.hidden = false;
+
+  try{
+    const idToken = State.user?.getIdToken ? await State.user.getIdToken().catch(()=>'') : '';
+    const res = await fetch(HALPISH_ENDPOINT, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ mode:'admin_draft', message, idToken }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok || !data.draft){
+      toast(data.error || 'Halpish could not draft that just now. Try again, or fill the form yourself.','err');
+      return;
+    }
+    halpishDraftData = data.draft;
+    renderHalpishDraft();
+    document.getElementById('halpish-draft-out')?.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }catch(err){
+    console.error('Halpish draft failed:', err);
+    toast('Could not reach Halpish. Fill the form in yourself, or try again in a moment.','err');
+  }finally{
+    btn.disabled = false;
+    btn.classList.remove('opacity-50');
+    if(status) status.hidden = true;
+  }
+};
+
+// Fills the real form fields and stops there. Saving stays with the admin's own
+// submit, so a draft can never publish a product on its own. Fields the draft
+// left empty are not touched, so anything already typed in survives.
+window.halpishDraftApply = function(){
+  const d = halpishDraftData;
+  const form = document.getElementById('product-form');
+  if(!d || !form) return;
+
+  const set = (name, value) => {
+    const el = form.elements[name];
+    if(el && value !== null && value !== undefined && value !== '') el.value = value;
+  };
+
+  set('name', d.name);
+  if(d.category && form.elements.category){
+    form.elements.category.value = d.category;
+    window.toggleDealFields(d.category);
+  }
+  set('price', d.price);
+  set('stock', d.stock);
+  set('description', d.description);
+  if(form.elements.customizable) form.elements.customizable.checked = !!d.customizable;
+
+  if(d.category === 'Deals'){
+    set('originalPrice', d.originalPrice);
+    set('badge', d.badge);
+    if(d.includedItems?.length) set('includedItems', d.includedItems.join('\n'));
+  }
+
+  toast('Form filled. Check the values, add photos, then publish.');
+  form.scrollIntoView({ behavior:'smooth', block:'start' });
+};
+
+window.halpishDraftDiscard = function(){
+  halpishDraftData = null;
+  renderHalpishDraft();
+};
+
 window.toggleDealFields = function(category){
   const box = document.getElementById('deal-fields');
   if(box) box.classList.toggle('hidden', category !== 'Deals');
@@ -3111,7 +3436,7 @@ function pageAdminOrders(){
               <select onchange="window.updateOrderStatus('${id.replace(/'/g,"\\'")}', this.value)" class="text-xs border border-gray-200 rounded-full px-3 py-1.5">
                 ${['Pending','Processing','Shipped','Delivered','Cancelled'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
               </select>
-              <button onclick="if(confirm('Delete order '+(o.orderId||id)+'?'))window.deleteOrder('${id.replace(/'/g,"\\'")}')" class="w-7 h-7 rounded-full border border-red-200 text-red-400 text-sm flex items-center justify-center hover:bg-red-50 hover:text-red-600" title="Delete order">&times;</button>
+              <button onclick="window.deleteOrder('${id.replace(/'/g,"\\'")}')" class="w-7 h-7 rounded-full border border-red-200 text-red-400 text-sm flex items-center justify-center hover:bg-red-50 hover:text-red-600" title="Delete order">&times;</button>
             </div>
           </div>
           <p class="text-sm text-gray-600">${escapeHtml(o.customer.name)} &middot; ${escapeHtml(o.customer.email)} &middot; ${escapeHtml(o.customer.phone)}</p>
@@ -3408,6 +3733,34 @@ function pageAdminSettings(){
     </div>
   </div>`;
 }
+
+function pageAdminAgent(){
+  if(!requireAdmin()) return '';
+  return `
+  <div class="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
+    <h1 class="font-serif text-2xl md:text-3xl mb-1">Store Management Agent</h1>
+    <p class="text-gray-500 text-sm mb-6">Ask Halpish to manage orders, inventory, discounts, and settings. Write actions require your confirmation.</p>
+    ${adminNav('#admin/agent')}
+
+    <div id="admin-agent-log" class="bg-white border border-gray-100 rounded-2xl p-4 md:p-6 mb-4 min-h-[240px] max-h-[50vh] overflow-y-auto flex flex-col gap-3"></div>
+
+    <div id="admin-agent-confirm" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 md:p-5 mb-4">
+      <p class="text-sm font-medium text-amber-800 mb-1" id="admin-agent-confirm-text"></p>
+      <p class="text-xs text-amber-600 mb-3">This will modify store data. Reply yes to confirm or no to cancel.</p>
+      <div class="flex gap-2">
+        <button type="button" onclick="window.adminAgentConfirm()" class="px-4 py-2 bg-amber-800 text-white text-sm rounded-xl hover:bg-amber-900 transition">Confirm</button>
+        <button type="button" onclick="window.adminAgentDeny()" class="px-4 py-2 border border-amber-300 text-amber-800 text-sm rounded-xl hover:bg-amber-100 transition">Cancel</button>
+      </div>
+    </div>
+
+    <form id="admin-agent-form" class="flex gap-2" onsubmit="event.preventDefault();">
+      <input id="admin-agent-input" type="text" placeholder="e.g. show today's orders, or update order GB-12345 to shipped"
+        class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+        onkeydown="if(event.key==='Enter')window.adminAgentSend()">
+      <button type="button" onclick="window.adminAgentSend()" class="btn-primary px-6 rounded-xl text-sm font-medium">Send</button>
+    </form>
+  </div>`;
+}
 function settingsPreviewHtml(s){
   return `
   <div class="p-6">
@@ -3475,6 +3828,244 @@ window.saveSiteSettings = async function(form){
     btn.disabled=false; btn.textContent = 'Save Changes';
   }
 };
+
+/* ---------------- Admin Agent (Halpish admin mode) ---------------- */
+
+window.adminAgentMessages = [];
+window.adminAgentSummary = '';
+window.adminAgentBusy = false;
+window.adminAgentPendingConfirm = null;
+
+window.adminAgentSend = async function(){
+  if(window.adminAgentBusy) return;
+  const input = document.getElementById('admin-agent-input');
+  const text = input?.value?.trim();
+  if(!text) return;
+  input.value = '';
+
+  window.adminAgentBusy = true;
+  window.adminAgentMessages.push({ role: 'user', content: text });
+  window.renderAdminAgentLog();
+
+  const history = window.adminAgentMessages
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .slice(0, -1).slice(-24);
+
+  const log = document.getElementById('admin-agent-log');
+  const confirmBox = document.getElementById('admin-agent-confirm');
+  if(confirmBox) confirmBox.classList.add('hidden');
+  window.adminAgentPendingConfirm = null;
+
+  try{
+    const res = await fetch('/api/halpish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'admin_chat',
+        message: text,
+        history,
+        summary: window.adminAgentSummary,
+        idToken: await State.user?.getIdToken?.().catch(() => '') || '',
+      }),
+    });
+
+    if(!res.ok || !res.body) throw new Error('Server error: ' + res.status);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let acc = '';
+    let bubble = null;
+    const startTime = Date.now();
+
+    while(true){
+      const { value, done } = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for(const line of lines){
+        const trimmed = line.trim();
+        if(!trimmed.startsWith('data:')) continue;
+        let ev;
+        try { ev = JSON.parse(trimmed.slice(5).trim()); } catch { continue; }
+
+        switch(ev.type){
+          case 'text':
+            acc += ev.delta;
+            if(!bubble){
+              bubble = document.createElement('div');
+              bubble.className = 'hp-msg bot';
+              log.appendChild(bubble);
+            }
+            bubble.innerHTML = window.linkifyAdminMsg(acc);
+            log.scrollTop = log.scrollHeight;
+            break;
+          case 'status':
+            window.setAdminAgentStatus(ev.elapsed ? formatElapsed(ev.elapsed) : 'Working...');
+            break;
+          case 'timer':
+            window.setAdminAgentStatus('Working... ' + formatElapsed(ev.elapsed));
+            break;
+          case 'confirm':
+            window.adminAgentPendingConfirm = { tool: ev.tool, args: ev.args };
+            if(confirmBox){
+              document.getElementById('admin-agent-confirm-text').textContent = ev.preview;
+              confirmBox.classList.remove('hidden');
+            }
+            break;
+          case 'awaiting_confirm':
+            // nothing extra — done event will follow
+            break;
+          case 'done':
+            if(typeof ev.summary === 'string') window.adminAgentSummary = ev.summary;
+            break;
+          case 'error':
+            window.adminAgentMessages.push({ role: 'note', content: ev.message });
+            break;
+        }
+      }
+    }
+
+    if(acc.trim()){
+      window.adminAgentMessages.push({ role: 'assistant', content: acc.trim() });
+    }
+    window.renderAdminAgentLog();
+  }catch(err){
+    window.adminAgentMessages.push({ role: 'note', content: 'Could not reach the server. Check your connection and try again.' });
+    window.renderAdminAgentLog();
+  }
+
+  window.adminAgentBusy = false;
+  window.setAdminAgentStatus('');
+};
+
+window.adminAgentConfirm = async function(){
+  const pending = window.adminAgentPendingConfirm;
+  if(!pending) return;
+  const confirmBox = document.getElementById('admin-agent-confirm');
+  if(confirmBox) confirmBox.classList.add('hidden');
+  window.adminAgentPendingConfirm = null;
+
+  window.adminAgentMessages.push({ role: 'user', content: 'yes' });
+  window.renderAdminAgentLog();
+  window.adminAgentBusy = true;
+
+  const history = window.adminAgentMessages
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .slice(-24);
+
+  const log = document.getElementById('admin-agent-log');
+
+  try{
+    const res = await fetch('/api/halpish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'admin_confirm',
+        message: 'yes',
+        history,
+        summary: window.adminAgentSummary,
+        idToken: await State.user?.getIdToken?.().catch(() => '') || '',
+      }),
+    });
+
+    if(!res.ok || !res.body) throw new Error('Server error: ' + res.status);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let acc = '';
+    let bubble = null;
+
+    while(true){
+      const { value, done } = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for(const line of lines){
+        const trimmed = line.trim();
+        if(!trimmed.startsWith('data:')) continue;
+        let ev;
+        try { ev = JSON.parse(trimmed.slice(5).trim()); } catch { continue; }
+
+        if(ev.type === 'text'){
+          acc += ev.delta;
+          if(!bubble){
+            bubble = document.createElement('div');
+            bubble.className = 'hp-msg bot';
+            log.appendChild(bubble);
+          }
+          bubble.innerHTML = window.linkifyAdminMsg(acc);
+          log.scrollTop = log.scrollHeight;
+        }else if(ev.type === 'done'){
+          if(typeof ev.summary === 'string') window.adminAgentSummary = ev.summary;
+        }else if(ev.type === 'error'){
+          window.adminAgentMessages.push({ role: 'note', content: ev.message });
+        }
+      }
+    }
+
+    if(acc.trim()) window.adminAgentMessages.push({ role: 'assistant', content: acc.trim() });
+    window.renderAdminAgentLog();
+  }catch(err){
+    window.adminAgentMessages.push({ role: 'note', content: 'Could not reach the server.' });
+    window.renderAdminAgentLog();
+  }
+
+  window.adminAgentBusy = false;
+  window.setAdminAgentStatus('');
+};
+
+window.adminAgentDeny = function(){
+  const confirmBox = document.getElementById('admin-agent-confirm');
+  if(confirmBox) confirmBox.classList.add('hidden');
+  window.adminAgentPendingConfirm = null;
+  window.adminAgentMessages.push({ role: 'user', content: 'Cancelled.' });
+  window.renderAdminAgentLog();
+};
+
+window.renderAdminAgentLog = function(){
+  const log = document.getElementById('admin-agent-log');
+  if(!log) return;
+  log.innerHTML = window.adminAgentMessages.map((m, i) => {
+    if(m.role === 'note'){
+      return '<div class="hp-msg note" style="color:#8a7f74;font-size:.8rem">' + escapeHtml(m.content) + '</div>';
+    }
+    const cls = m.role === 'user' ? 'me' : 'bot';
+    const content = m.role === 'user' ? escapeHtml(m.content) : (window.linkifyAdminMsg(m.content) || '');
+    return '<div class="hp-msg ' + cls + '">' + content + '</div>';
+  }).join('');
+  log.scrollTop = log.scrollHeight;
+};
+
+window.setAdminAgentStatus = function(text){
+  let el = document.getElementById('admin-agent-status');
+  if(!text){ if(el) el.remove(); return; }
+  if(!el){
+    el = document.createElement('div');
+    el.className = 'hp-status';
+    el.id = 'admin-agent-status';
+    const log = document.getElementById('admin-agent-log');
+    if(log) log.appendChild(el);
+  }
+  el.innerHTML = '<i></i><i></i><i></i><span>' + escapeHtml(text) + '</span>';
+};
+
+window.linkifyAdminMsg = function(text){
+  if(typeof window.linkify === 'function') return window.linkify(text);
+  return escapeHtml(text || '');
+};
+
+function formatElapsed(ms){
+  if(!ms) return '';
+  const s = (ms / 1000).toFixed(1);
+  return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+}
+
 window.saveSaleEvent = async function(form){
   if(!requireFirebase()) return;
   const btn = form.querySelector('button');
@@ -3890,6 +4481,21 @@ window.setShopPage = function(p){
   render();
   window.scrollTo({top:0,behavior:'smooth'});
 };
+// Inline handlers run in global scope, where `State` and `render` — both module
+// scoped — do not exist. Anything a template's onclick/onchange calls has to be
+// reachable on `window`.
+window.setShopPerPage = function(n){
+  const v = parseInt(n, 10);
+  if(!Number.isFinite(v) || v < 1) return;
+  State.shopPerPage = v;
+  State.shopPage = 1;
+  render();
+};
+window.clearRecentlyViewed = function(){
+  State.recentlyViewed = [];
+  saveRecentlyViewed();
+  render();
+};
 /* ---- Address Book ---- */
 window.addAddress = function(){
   const a = {
@@ -4026,13 +4632,113 @@ function render(){
   // Use a microtask instead of requestAnimationFrame: rAF gets paused/throttled
   // by browsers when the tab/iframe isn't visible yet, which was causing a
   // blank screen on first load in some embedded/preview contexts.
-  Promise.resolve().then(()=>{ _renderScheduled = false; doRender();
-    const ls = document.getElementById('loading-screen');
-    if(ls) ls.remove();
-  });
+  Promise.resolve().then(()=>{ _renderScheduled = false; doRender(); });
 }
 // Countdown timer tick — updates sale countdowns every second
 setInterval(saleTick, 1000);
+/* ---------------- Motion: route entrance, scroll reveal, nav slide bar ---------------- */
+let _lastRoute = null;
+
+const _reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Scroll reveal runs off timers + scroll events, deliberately NOT IntersectionObserver:
+// an observer never fires in a non-compositing context (hidden tab, embedded preview),
+// which would strand every .reveal element at opacity 0 — i.e. an invisible page.
+// Timers and scroll events always run, so content can never get stuck hidden.
+let _revealPending = [];
+let _revealTick = false;
+const _badgeCounts = {};
+
+function _revealScan(){
+  _revealTick = false;
+  if(!_revealPending.length) return;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  if(!vh){ _revealPending.forEach(el=> el.classList.add('in')); _revealPending = []; return; }
+  const rest = [];
+  for(const el of _revealPending){
+    if(!el.isConnected) continue;                    // element was replaced by a re-render
+    const r = el.getBoundingClientRect();
+    if(r.bottom > 0 && r.top < vh * 0.94) el.classList.add('in');
+    else rest.push(el);
+  }
+  _revealPending = rest;
+}
+
+function _queueRevealScan(){
+  if(_revealTick) return;
+  _revealTick = true;
+  setTimeout(_revealScan, 50);
+}
+
+window.addEventListener('scroll', _queueRevealScan, { passive:true });
+window.addEventListener('resize', _queueRevealScan);
+
+// Show/hide the nav strip's edge fades + arrows based on how far it's scrolled.
+window.navStripSync = function(){
+  const strip = document.getElementById('nav-strip');
+  const track = document.getElementById('nav-track');
+  if(!strip || !track) return;
+  const max = track.scrollWidth - track.clientWidth;
+  strip.classList.toggle('can-l', track.scrollLeft > 4);
+  strip.classList.toggle('can-r', max > 4 && track.scrollLeft < max - 4);
+};
+
+// Arrow buttons nudge the strip by ~70% of its visible width.
+window.navStripNudge = function(dir){
+  const track = document.getElementById('nav-track');
+  if(!track) return;
+  track.scrollBy({ left: dir * Math.max(160, track.clientWidth * 0.7), behavior: 'smooth' });
+};
+
+function afterRender(routeChanged){
+  window.navStripSync();
+
+  // The notification badge pops only when its number actually grows. The header is
+  // rebuilt on every render, so applying .pop in the template would replay it constantly.
+  // (The cart badge already has its own bounce, fired from addToCart.)
+  const _popIfGrown = (sel, count, prevKey)=>{
+    const prev = _badgeCounts[prevKey];
+    _badgeCounts[prevKey] = count;
+    if(prev === undefined || count <= prev) return;
+    const el = document.querySelector(sel);
+    if(el) el.classList.add('pop');
+  };
+  _popIfGrown('.notif-badge', State.orderNotifications.filter(n=>!n.read).length, 'notif');
+
+  // Bring the active route's link into view inside the scrollable strip.
+  const track = document.getElementById('nav-track');
+  if(track){
+    const active = track.querySelector(`a[href="${State.route}"]`);
+    if(active && active.scrollIntoView) active.scrollIntoView({ block:'nearest', inline:'center', behavior: routeChanged ? 'smooth' : 'auto' });
+  }
+
+  const main = document.querySelector('main');
+  if(!main || _reducedMotion()) return;
+
+  // Top-level page blocks, then product cards get a short stagger within their grid.
+  const targets = [];
+  Array.from(main.children).forEach((el, i)=>{
+    if(i === 0) return;                  // first block animates via .page-enter
+    el.style.transitionDelay = Math.min(i * 60, 240) + 'ms';
+    targets.push(el);
+  });
+  main.querySelectorAll('.grid > .card-hover, .grid > div > .card-hover').forEach((card, i)=>{
+    card.style.transitionDelay = Math.min((i % 8) * 55, 400) + 'ms';
+    targets.push(card);
+  });
+  targets.forEach(el=> el.classList.add('reveal'));
+  _revealPending = targets;
+
+  // A route change gets one paint in the hidden state so the rise-in actually plays.
+  // A same-route re-render (products/orders arriving over onSnapshot) reveals in this
+  // very tick instead, so content the visitor is already looking at never blinks out.
+  if(routeChanged) setTimeout(_revealScan, 30);
+  else _revealScan();
+}
+
+// Keep the strip's fades correct when the window is resized.
+window.addEventListener('resize', ()=> window.navStripSync());
+
 function doRender(){
   const root = document.getElementById('app-root');
   const route = State.route;
@@ -4048,6 +4754,7 @@ function doRender(){
     else if(route==='#admin/product') body = pageAdminProduct(null);
     else if(route==='#admin/inventory') body = pageAdminInventory();
     else if(route==='#admin/orders') body = pageAdminOrders();
+    else if(route==='#admin/agent') body = pageAdminAgent();
     else if(route==='#admin/trash') body = pageAdminTrash();
     else if(route==='#admin/settings') body = pageAdminSettings();
     else if(route==='#admin') body = pageAdminDash();
@@ -4058,7 +4765,6 @@ function doRender(){
     else if(route.startsWith('#profile')) body = pageProfile();
     else if(route==='#orders') body = pageProfile();
     else if(route==='#faq') body = pageFAQ();
-    else if(route==='#size-guide') body = pageSizeGuide();
     else body = pageHome();
 
     root.innerHTML = `
@@ -4066,15 +4772,11 @@ function doRender(){
       ${navigator.onLine ? '' : '<div class="fixed top-0 left-0 right-0 z-[9999] bg-amber-500 text-white text-center text-xs py-1.5 font-medium">You are currently offline &middot; Some features may be limited</div>'}
       ${Header()}
       ${MobileMenu()}
-      <main class="page active min-h-[60vh]">${body}</main>
+      <main class="page active min-h-[60vh] ${route !== _lastRoute ? 'page-enter' : ''}">${body}</main>
       ${Footer()}
       ${BottomNav()}
       <div id="cart-drawer-root">${CartDrawer()}</div>
       ${SearchOverlay()}
-      <button id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" class="fixed bottom-20 right-4 z-40 w-11 h-11 rounded-full bg-primary text-white shadow-lg flex items-center justify-center text-lg opacity-0 pointer-events-none transition-opacity duration-300 hover:bg-primary/90" aria-label="Back to top">&#8593;</button>
-      <a href="https://wa.me/923001234567" target="_blank" rel="noopener" class="fixed bottom-20 left-4 z-40 w-11 h-11 rounded-full bg-green-500 text-white shadow-lg flex items-center justify-center text-lg hover:bg-green-600 transition" aria-label="Chat on WhatsApp">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-      </a>
       <div id="lightbox" onclick="window.closeLightbox()" class="fixed inset-0 bg-black/90 z-[200] hidden items-center justify-center cursor-zoom-out">
         <button onclick="event.stopPropagation(); window.lightboxNav(-1)" class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 text-white/80 text-3xl hover:text-white z-10">&#8249;</button>
         <img id="lightbox-img" src="" class="max-w-[90vw] max-h-[90vh] object-contain">
@@ -4085,6 +4787,19 @@ function doRender(){
     `;
     positionHeaderForSaleBar();
     if(typeof window.updateDarkIcon === 'function') window.updateDarkIcon(document.documentElement.classList.contains('dark'));
+    // Reveal classes are re-applied on every render, since rebuilding innerHTML wipes
+    // them. Only a real route change animates; a same-route re-render (auth/products
+    // resolving, add to cart) reveals instantly so nothing the visitor sees blinks out.
+    const _routeChanged = route !== _lastRoute;
+    afterRender(_routeChanged);
+    _lastRoute = route;
+    // Window property, not `typeof Halpish` — Halpish is a module-scoped const,
+    // and typeof on a const still in its TDZ throws.
+    if(typeof window.halpishSyncVisibility === 'function') window.halpishSyncVisibility(route);
+    // The product page pins an add-to-cart bar above the mobile nav. The floating
+    // buttons read this class through --fab-gap so they sit above it rather than on it.
+    document.body.classList.toggle('has-sticky-bar', route.startsWith('#product/'));
+    if(typeof window.mountFloatingButtons === 'function') window.mountFloatingButtons();
     if(route === '#admin/discounts'){
       setTimeout(() => { if(typeof window.populateDiscountProductLists === 'function') window.populateDiscountProductLists(); }, 50);
     }
@@ -4154,13 +4869,299 @@ if('serviceWorker' in navigator){
 window.addEventListener('online', ()=> render());
 window.addEventListener('offline', ()=> render());
 
-// Back-to-top button visibility
-window.addEventListener('scroll', ()=>{
+/* ===== Floating buttons: WhatsApp + back to top =====
+   These used to be emitted inside doRender()'s template, so every render threw
+   them away and built new ones. That is fine for a static button and fatal for a
+   draggable one, so they are mounted once into #floating-root — a sibling of
+   #app-root that doRender() never touches. */
+window.mountFloatingButtons = function(){
+  const host = document.getElementById('floating-root');
+  if(!host || host.dataset.mounted === '1') return;
+  host.dataset.mounted = '1';
+
+  const waText = encodeURIComponent('Hi Gbyrish! I have a question about your products.');
+  host.innerHTML = `
+    <a id="wa-fab" class="fab fab-wa" draggable="false"
+       href="https://wa.me/${STORE_WHATSAPP}?text=${waText}"
+       target="_blank" rel="noopener" aria-label="Chat on WhatsApp (drag to move)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    </a>
+    <button id="back-to-top" type="button" class="fab fab-top" aria-label="Back to top">&#8593;</button>`;
+
+  // Bound before the action handlers below on purpose: at the target phase the
+  // browser runs listeners in registration order, so the drag's click-blocker has
+  // to be first if it is going to suppress them.
+  window.initDraggableFabs();
+
+  host.querySelector('#back-to-top').addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  syncBackToTop();
+};
+
+function syncBackToTop(){
   const btn = document.getElementById('back-to-top');
-  if(!btn) return;
-  if(window.scrollY > 400) { btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
-  else { btn.style.opacity = '0'; btn.style.pointerEvents = 'none'; }
-}, { passive: true });
+  if(btn) btn.classList.toggle('show', window.scrollY > 400);
+}
+window.addEventListener('scroll', syncBackToTop, { passive: true });
+
+/* ===== Drag-to-move for the floating buttons =====
+   The customer decides where these live; the position survives reload and is
+   clamped into the viewport so nothing can be lost off an edge. */
+const FAB_POS_KEY = 'gbyrish_fab_pos';
+const FAB_IDS = ['halpish-fab', 'wa-fab', 'back-to-top'];
+const DRAG_THRESHOLD = 6;   // px of movement before a press counts as a drag
+const CLICK_BLOCK_MS = 320; // window after a drag in which a click is ignored
+
+let fabPos = {};
+try { fabPos = JSON.parse(localStorage.getItem(FAB_POS_KEY) || '{}') || {}; }
+catch { fabPos = {}; }
+
+let lastDragEnd = 0;
+
+function saveFabPos(){
+  try { localStorage.setItem(FAB_POS_KEY, JSON.stringify(fabPos)); } catch { /* quota */ }
+  const reset = document.getElementById('fab-reset');
+  if(reset) reset.classList.toggle('show', Object.keys(fabPos).length > 0);
+}
+
+// Applies a stored position, keeping the element fully on screen. Switching to
+// left/top means right/bottom have to be released, or the element is pinned from
+// both sides and the width collapses.
+function applyFabPos(el, pos){
+  if(!el || !pos) return;
+  const w = el.offsetWidth || 44, h = el.offsetHeight || 44;
+  const maxL = Math.max(0, window.innerWidth - w - 8);
+  const maxT = Math.max(0, window.innerHeight - h - 8);
+  el.style.left = Math.min(Math.max(8, pos.left), maxL) + 'px';
+  el.style.top = Math.min(Math.max(8, pos.top), maxT) + 'px';
+  el.style.right = 'auto';
+  el.style.bottom = 'auto';
+}
+
+window.initDraggableFabs = function(){
+  for(const id of FAB_IDS){
+    const el = document.getElementById(id);
+    if(!el || el.dataset.dragBound === '1') continue;
+    el.dataset.dragBound = '1';
+    if(fabPos[id]) applyFabPos(el, fabPos[id]);
+    bindFabDrag(el, id);
+  }
+};
+
+function bindFabDrag(el, id){
+  let startX = 0, startY = 0, baseL = 0, baseT = 0, dragging = false, pointerId = null;
+
+  el.addEventListener('pointerdown', (e) => {
+    if(e.button !== undefined && e.button !== 0) return; // left button / touch only
+    const r = el.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    baseL = r.left; baseT = r.top;
+    dragging = false;
+    pointerId = e.pointerId;
+    try { el.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if(pointerId === null || e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if(!dragging){
+      // A tap wobbles a few pixels. Below the threshold this is still a click.
+      if(Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+      dragging = true;
+      el.classList.add('fab-dragging');
+    }
+    e.preventDefault();
+    applyFabPos(el, { left: baseL + dx, top: baseT + dy });
+  });
+
+  const finish = (e) => {
+    if(pointerId === null || (e && e.pointerId !== undefined && e.pointerId !== pointerId)) return;
+    pointerId = null;
+    if(!dragging) return;
+    dragging = false;
+    el.classList.remove('fab-dragging');
+    // Record where it actually ended up, post-clamp, so a reload is faithful.
+    const r = el.getBoundingClientRect();
+    fabPos[id] = { left: Math.round(r.left), top: Math.round(r.top) };
+    saveFabPos();
+    lastDragEnd = Date.now();
+  };
+  el.addEventListener('pointerup', finish);
+  el.addEventListener('pointercancel', finish);
+
+  // Capture phase, and a timestamp rather than a setTimeout flag: the click event
+  // can fire before a 0ms timeout would clear, and for the WhatsApp anchor that
+  // means every reposition also opens WhatsApp.
+  el.addEventListener('click', (e) => {
+    if(Date.now() - lastDragEnd < CLICK_BLOCK_MS){
+      e.preventDefault();
+      e.stopPropagation();
+      // stopPropagation alone would not reach the button's own action handler,
+      // which sits on the same element.
+      e.stopImmediatePropagation();
+    }
+  }, true);
+
+  // Keyboard equivalent, so the buttons are movable without a pointer.
+  el.addEventListener('keydown', (e) => {
+    if(!e.shiftKey) return;
+    const step = 12;
+    const d = { ArrowLeft:[-step,0], ArrowRight:[step,0], ArrowUp:[0,-step], ArrowDown:[0,step] }[e.key];
+    if(!d) return;
+    e.preventDefault();
+    const r = el.getBoundingClientRect();
+    applyFabPos(el, { left: r.left + d[0], top: r.top + d[1] });
+    const n = el.getBoundingClientRect();
+    fabPos[id] = { left: Math.round(n.left), top: Math.round(n.top) };
+    saveFabPos();
+  });
+}
+
+/* ---------------- Draggable Halpish Panel (desktop) ---------------- */
+
+const HP_POS_KEY = 'gbyrish-hp-pos';
+let hpPos = {};
+try { hpPos = JSON.parse(localStorage.getItem(HP_POS_KEY) || '{}') || {}; } catch { hpPos = {}; }
+
+function saveHpPos(){
+  try { localStorage.setItem(HP_POS_KEY, JSON.stringify(hpPos)); } catch { /* quota */ }
+}
+
+function applyHpPos(){
+  const panel = document.getElementById('halpish-panel');
+  if(!panel || !hpPos.left) return;
+  const w = panel.offsetWidth || 384;
+  const h = panel.offsetHeight || 500;
+  const maxL = Math.max(0, window.innerWidth - w - 8);
+  const maxT = Math.max(0, window.innerHeight - h - 8);
+  const l = Math.min(Math.max(8, hpPos.left), maxL);
+  const t = Math.min(Math.max(8, hpPos.top), maxT);
+  panel.style.left = l + 'px';
+  panel.style.top = t + 'px';
+  panel.style.right = 'auto';
+  panel.style.bottom = 'auto';
+}
+
+window.initDraggablePanel = function(){
+  const panel = document.getElementById('halpish-panel');
+  const head = panel?.querySelector('.hp-head');
+  if(!panel || !head) return;
+
+  // Only drag on desktop.
+  if(window.innerWidth < 768) return;
+
+  // Restore saved position.
+  if(hpPos.left) applyHpPos();
+
+  let dragging = false, pointerId = null;
+  let startX = 0, startY = 0, baseL = 0, baseT = 0;
+  let lastDragEnd = 0;
+
+  head.addEventListener('pointerdown', (e) => {
+    if(window.innerWidth < 768) return;
+    // Don't drag when interacting with buttons inside the header.
+    if(e.target.closest('button')) return;
+    const r = panel.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    baseL = r.left; baseT = r.top;
+    dragging = false;
+    pointerId = e.pointerId;
+    try { panel.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+  });
+
+  panel.addEventListener('pointermove', (e) => {
+    if(pointerId === null || e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if(!dragging){
+      if(Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      dragging = true;
+      panel.classList.add('hp-dragging');
+    }
+    e.preventDefault();
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxL = Math.max(0, window.innerWidth - w - 8);
+    const maxT = Math.max(0, window.innerHeight - h - 8);
+    panel.style.left = Math.min(Math.max(8, baseL + dx), maxL) + 'px';
+    panel.style.top = Math.min(Math.max(8, baseT + dy), maxT) + 'px';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+  });
+
+  const finish = (e) => {
+    if(pointerId === null || (e && e.pointerId !== undefined && e.pointerId !== pointerId)) return;
+    pointerId = null;
+    if(dragging){
+      dragging = false;
+      panel.classList.remove('hp-dragging');
+      const r = panel.getBoundingClientRect();
+      hpPos = { left: Math.round(r.left), top: Math.round(r.top) };
+      saveHpPos();
+      lastDragEnd = Date.now();
+    }
+  };
+  panel.addEventListener('pointerup', finish);
+  panel.addEventListener('pointercancel', finish);
+
+  // Block clicks on header buttons that fire immediately after a drag.
+  panel.addEventListener('click', (e) => {
+    if(Date.now() - lastDragEnd < 320){
+      if(e.target.closest('button')){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
+    }
+  }, true);
+
+  // Shift+Arrow keys for keyboard repositioning.
+  head.addEventListener('keydown', (e) => {
+    if(!e.shiftKey) return;
+    const step = 12;
+    const d = { ArrowLeft:[-step,0], ArrowRight:[step,0], ArrowUp:[0,-step], ArrowDown:[0,step] }[e.key];
+    if(!d) return;
+    e.preventDefault();
+    const r = panel.getBoundingClientRect();
+    applyHpPosEl(panel, { left: r.left + d[0], top: r.top + d[1] });
+    const n = panel.getBoundingClientRect();
+    hpPos = { left: Math.round(n.left), top: Math.round(n.top) };
+    saveHpPos();
+  });
+};
+
+function applyHpPosEl(el, pos){
+  if(!el || !pos) return;
+  const w = el.offsetWidth || 384, h = el.offsetHeight || 500;
+  const maxL = Math.max(0, window.innerWidth - w - 8);
+  const maxT = Math.max(0, window.innerHeight - h - 8);
+  el.style.left = Math.min(Math.max(8, pos.left), maxL) + 'px';
+  el.style.top = Math.min(Math.max(8, pos.top), maxT) + 'px';
+  el.style.right = 'auto';
+  el.style.bottom = 'auto';
+}
+
+window.hasCustomFabPos = function(){ return Object.keys(fabPos).length > 0; };
+
+window.resetFabPositions = function(){
+  fabPos = {};
+  try { localStorage.removeItem(FAB_POS_KEY); } catch { /* ignore */ }
+  for(const id of FAB_IDS){
+    const el = document.getElementById(id);
+    if(!el) continue;
+    el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = '';
+  }
+  const reset = document.getElementById('fab-reset');
+  if(reset) reset.classList.remove('show');
+  if(typeof toast === 'function') toast('Buttons moved back to their usual spots');
+};
+
+// Re-clamp on resize, but do NOT write the clamped value back: rotating a phone
+// would otherwise permanently squash every position toward the top-left.
+window.addEventListener('resize', () => {
+  for(const id of FAB_IDS){
+    if(!fabPos[id]) continue;
+    applyFabPos(document.getElementById(id), fabPos[id]);
+  }
+});
+
+window.mountFloatingButtons();
 
 // Dark Mode
 window.toggleDarkMode = function(){
@@ -4186,6 +5187,7 @@ window.updateDarkIcon = function(isDark){
 
 // Keyboard shortcuts
 window.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && Halpish.open){ Halpish.close(); return; }
   if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
   if(e.key === 'Escape'){
     if(State.searchOpen){ window.openSearch(); }
@@ -4193,6 +5195,530 @@ window.addEventListener('keydown', (e) => {
   }
   if(e.key === '/' && !State.searchOpen){ e.preventDefault(); window.openSearch(); }
 });
+
+/* ==================================================================
+   Halpish — the Gbyrish helper bot (customer chat)
+   ==================================================================
+   Mounted once into #halpish-root, which sits outside #app-root. doRender()
+   rebuilds app-root's innerHTML on every route change and every Firestore
+   snapshot; keeping Halpish outside it means an open chat is never destroyed
+   mid-reply and the transcript survives navigation.
+
+   All model access goes through /api/halpish. No API key exists in this file,
+   and the browser never learns which provider or model is in use. */
+
+const HALPISH_ENDPOINT = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? '/api/halpish' : '/api/halpish';
+const HALPISH_STORE_KEY = 'gbyrish_halpish_chat';
+
+const Halpish = {
+  open: false,
+  busy: false,
+  messages: [],        // [{ role:'user'|'assistant'|'note', content }]
+  summary: '',         // server-side context digest, replayed each turn
+  mounted: false,
+  lastFailedSend: null,
+
+  /* ---------- persistence ---------- */
+  load(){
+    try{
+      const raw = localStorage.getItem(HALPISH_STORE_KEY);
+      if(!raw) return;
+      const saved = JSON.parse(raw);
+      if(Array.isArray(saved.messages)) this.messages = saved.messages.slice(-40);
+      if(typeof saved.summary === 'string') this.summary = saved.summary;
+    }catch{ /* corrupt entry: start fresh rather than break the page */ }
+  },
+  save(){
+    try{
+      localStorage.setItem(HALPISH_STORE_KEY, JSON.stringify({
+        // Notes are transient UI, not conversation — they are not replayed.
+        messages: this.messages.filter(m => m.role !== 'note').slice(-40),
+        summary: this.summary,
+      }));
+    }catch{ /* storage full or blocked: chat still works for this session */ }
+  },
+
+  /* ---------- mount ---------- */
+  mount(){
+    if(this.mounted) return;
+    const root = document.getElementById('halpish-root');
+    if(!root) return;
+    this.mounted = true;
+    this.load();
+
+    root.innerHTML = `
+      <button id="halpish-fab" aria-label="Open Halpish, the Gbyrish helper" aria-expanded="false">
+        <span class="hp-fab-label">Ask Halpish</span>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+        </svg>
+      </button>
+      <section class="hp-panel" id="halpish-panel" role="dialog" aria-modal="false" aria-label="Halpish helper">
+        <div class="hp-head">
+          <div class="hp-mark" aria-hidden="true">H</div>
+          <div style="min-width:0">
+            <p class="font-serif" style="font-size:.95rem;font-weight:600;line-height:1.2">Halpish</p>
+            <p style="font-size:.7rem;color:#8a7f74;line-height:1.2">Gbyrish helper</p>
+          </div>
+          <button class="hp-close" id="halpish-reset" title="Start a new chat" aria-label="Start a new chat" style="margin-left:auto;font-size:1rem">&#8635;</button>
+          <button class="hp-close fab-reset" id="fab-reset" title="Move the buttons back to their usual spots" aria-label="Reset button positions" style="margin-left:0;font-size:.95rem">&#10226;</button>
+          <button class="hp-close" id="halpish-x" title="Close" aria-label="Close Halpish" style="margin-left:0">&times;</button>
+        </div>
+        <div class="hp-log" id="halpish-log" aria-live="polite"></div>
+        <div class="hp-chips" id="halpish-chips"></div>
+        <form class="hp-form" id="halpish-form" autocomplete="off">
+          <div id="halpish-img-preview-row" class="hp-img-row" style="display:none;padding:0 .5rem">
+            <img id="halpish-img-thumb" style="max-height:40px;border-radius:6px;border:1px solid #E8DFD5" alt="">
+            <button type="button" onclick="window.halpishRemoveImage()" style="background:none;border:none;color:#8a7f74;cursor:pointer;font-size:1.1rem;padding:0 .2rem" title="Remove image">&times;</button>
+          </div>
+          <div class="hp-input-row">
+            <input class="hp-input" id="halpish-input" type="text" maxlength="500" placeholder="Ask about a product, gift or order" aria-label="Message Halpish">
+            <button type="button" id="halpish-img-btn" class="hp-img-btn" title="Attach an image" aria-label="Attach image">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            </button>
+            <input type="file" id="halpish-img-input" accept="image/jpeg,image/png,image/webp" hidden>
+            <button class="hp-send" id="halpish-send" type="submit" aria-label="Send">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </button>
+          </div>
+        </form>
+      </section>`;
+
+    // Before the onclick assignments below: the drag's click-blocker only wins if
+    // it was registered first.
+    if(typeof window.initDraggableFabs === 'function') window.initDraggableFabs();
+
+    document.getElementById('halpish-fab').onclick = () => this.toggle();
+    document.getElementById('halpish-x').onclick = () => this.close();
+    document.getElementById('halpish-reset').onclick = () => this.reset();
+    document.getElementById('fab-reset').onclick = () => window.resetFabPositions();
+    document.getElementById('halpish-form').onsubmit = (e) => {
+      e.preventDefault();
+      const input = document.getElementById('halpish-input');
+      const text = input.value.trim();
+      if(!text && !Halpish.pendingImage) return;
+      input.value = '';
+      this.send(text);
+    };
+
+    // Image upload.
+    const imgBtn = document.getElementById('halpish-img-btn');
+    const imgInput = document.getElementById('halpish-img-input');
+    if(imgBtn && imgInput){
+      imgBtn.onclick = () => imgInput.click();
+      imgInput.onchange = (e) => {
+        const file = e.target.files?.[0];
+        if(file) Halpish.attachImage(file);
+      };
+    }
+
+    // Make the header draggable so the panel can be repositioned on desktop.
+    initDraggablePanel();
+
+    this.renderLog();
+    this.renderChips();
+    this.syncVisibility(State.route);
+    // The reset control lives in this header, so it can only learn about a stored
+    // position once the header exists.
+    const reset = document.getElementById('fab-reset');
+    if(reset && typeof window.hasCustomFabPos === 'function'){
+      reset.classList.toggle('show', window.hasCustomFabPos());
+    }
+  },
+
+  // The chat bubble is a customer surface. On the admin dashboard it is both
+  // redundant (product drafting lives in the form itself) and in the way of the
+  // admin's own controls on a phone, so it is hidden there. WhatsApp goes with it:
+  // on #admin/products it sat on top of the Publish button.
+  syncVisibility(route){
+    const onAdmin = String(route || '').startsWith('#admin');
+    for(const id of ['halpish-fab', 'wa-fab']){
+      const el = document.getElementById(id);
+      if(el) el.style.display = onAdmin ? 'none' : '';
+    }
+    if(onAdmin && this.open) this.close();
+  },
+
+  /* ---------- open / close ---------- */
+  toggle(){ this.open ? this.close() : this.openPanel(); },
+
+  openPanel(){
+    this.open = true;
+    const panel = document.getElementById('halpish-panel');
+    const fab = document.getElementById('halpish-fab');
+    if(panel) panel.classList.add('open');
+    if(fab) fab.setAttribute('aria-expanded', 'true');
+    // Full-sheet on mobile: stop the page behind it from scrolling.
+    if(window.matchMedia('(max-width:767px)').matches) document.body.style.overflow = 'hidden';
+    if(!this.messages.length) this.greet();
+    this.renderChips();
+    this.scrollLog();
+    setTimeout(() => { const i = document.getElementById('halpish-input'); if(i && window.innerWidth >= 768) i.focus(); }, 260);
+  },
+
+  close(){
+    this.open = false;
+    const panel = document.getElementById('halpish-panel');
+    const fab = document.getElementById('halpish-fab');
+    if(panel) panel.classList.remove('open');
+    if(fab) fab.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  },
+
+  reset(){
+    this.messages = [];
+    this.summary = '';
+    this.lastFailedSend = null;
+    this.save();
+    this.greet();
+    this.renderChips();
+  },
+
+  greet(){
+    const name = State.user?.displayName ? State.user.displayName.split(' ')[0] : '';
+    this.messages.push({
+      role: 'assistant',
+      content: `Hello${name ? ' ' + name : ''}. I can help you find something, check prices and stock, explain current offers, or look up your order. What are you after?`,
+    });
+    this.renderLog();
+  },
+
+  /* ---------- rendering ---------- */
+
+  // Turn the site's own hash routes into real links. Text is escaped first, so
+  // nothing a model or a product description contains can inject markup.
+  linkify(text){
+    const routePattern = /#(product\/[A-Za-z0-9_-]{4,}|shopall|shop\?cat=[^\s,.;)]+|jewelry|bouquets|giftbaskets|customized|customrings|deals|wishlist|compare|checkout|profile|orders|track-order(?:\/[A-Za-z0-9_-]+)?|faq|home)\b/g;
+    return escapeHtml(text).replace(routePattern, (match) => {
+      const route = match.replace(/&amp;/g, '&');
+      let label = 'View';
+      const prodId = route.match(/^#product\/(.+)$/)?.[1];
+      if(prodId){
+        const p = State.products[prodId];
+        label = p ? 'View ' + escapeHtml(p.name) : 'View product';
+      }else if(route === '#shopall') label = 'Browse the shop';
+      else if(route === '#checkout') label = 'Go to checkout';
+      else if(route === '#profile' || route === '#orders') label = 'Your account';
+      else if(route === '#wishlist') label = 'Your wishlist';
+      else if(route === '#compare') label = 'Compare';
+      else if(route === '#faq') label = 'FAQ';
+      else if(route.startsWith('#track-order')) label = 'Track your order';
+      else label = 'Browse';
+      return `<a href="${escapeHtml(route)}" onclick="window.halpishFollowLink()">${label}</a>`;
+    });
+  },
+
+  renderLog(){
+    const log = document.getElementById('halpish-log');
+    if(!log) return;
+    log.innerHTML = this.messages.map((m, i) => {
+      if(m.role === 'note'){
+        const retry = m.retryable ? ` <button class="hp-chip" style="margin-left:.4rem;padding:.15rem .55rem" onclick="window.halpishRetry()">Try again</button>` : '';
+        return `<div class="hp-msg note">${escapeHtml(m.content)}${retry}</div>`;
+      }
+      const cls = m.role === 'user' ? 'me' : 'bot';
+      return `<div class="hp-msg ${cls}" data-i="${i}">${this.linkify(m.content)}</div>`;
+    }).join('');
+    this.scrollLog();
+  },
+
+  renderChips(){
+    const box = document.getElementById('halpish-chips');
+    if(!box) return;
+    if(this.busy || this.messages.filter(m => m.role === 'user').length > 0){ box.innerHTML = ''; return; }
+
+    const chips = [];
+    const productId = State.route.startsWith('#product/') ? State.route.split('/')[1] : '';
+    const current = productId ? State.products[productId] : null;
+    if(current){
+      chips.push(`Is "${current.name}" in stock?`);
+      chips.push('Anything similar but cheaper?');
+    }else{
+      chips.push('Gift ideas under Rs. 1,500');
+      chips.push('What is on sale?');
+    }
+    chips.push('Any promo codes?');
+    if(State.user) chips.push('Check my order');
+
+    box.innerHTML = chips.slice(0, 4).map(c =>
+      `<button class="hp-chip" onclick="window.halpishAsk(${JSON.stringify(c).replace(/"/g, '&quot;')})">${escapeHtml(c)}</button>`
+    ).join('');
+  },
+
+  setStatus(label){
+    const log = document.getElementById('halpish-log');
+    if(!log) return;
+    let el = document.getElementById('halpish-status');
+    if(!label){ if(el) el.remove(); return; }
+    if(!el){
+      el = document.createElement('div');
+      el.className = 'hp-status';
+      el.id = 'halpish-status';
+      log.appendChild(el);
+    }
+    el.innerHTML = `<i></i><i></i><i></i><span>${escapeHtml(label)}</span>`;
+    this.scrollLog();
+  },
+
+  scrollLog(){
+    const log = document.getElementById('halpish-log');
+    if(log) log.scrollTop = log.scrollHeight;
+  },
+
+  setBusy(busy){
+    this.busy = busy;
+    const send = document.getElementById('halpish-send');
+    const input = document.getElementById('halpish-input');
+    if(send) send.disabled = busy;
+    if(input) input.disabled = busy;
+    if(!busy && input && window.innerWidth >= 768) input.focus();
+  },
+
+  /* ---------- talking to the server ---------- */
+
+  async idToken(){
+    if(!State.user?.getIdToken) return '';
+    try { return await State.user.getIdToken(); }
+    catch { return ''; }        // expired token: the server treats us as a guest
+  },
+
+  context(){
+    const productId = State.route.startsWith('#product/') ? State.route.split('/')[1] : '';
+    const p = productId ? State.products[productId] : null;
+    return {
+      route: State.route,
+      productName: p ? p.name : '',
+      cartCount: cartCount(),
+    };
+  },
+
+  async send(text){
+    if(this.busy) return;
+    const images = this.pendingImage ? [this.pendingImage] : [];
+    if(this.pendingImage) this.removeImage();
+    this.messages.push({ role: 'user', content: text, images });
+    // Drop any stale error note now that the customer is trying again.
+    this.messages = this.messages.filter(m => m.role !== 'note');
+    this.renderLog();
+    this.renderChips();
+    this.save();
+    await this.stream(text, images);
+  },
+
+  attachImage(file){
+    if(!file) return;
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if(!validTypes.includes(file.type)){
+      this.messages.push({ role: 'note', content: 'Unsupported image type. Use JPG, PNG or WebP.' });
+      this.renderLog();
+      return;
+    }
+    if(file.size > 5 * 1024 * 1024){
+      this.messages.push({ role: 'note', content: 'Image is too large. Please use one under 5 MB.' });
+      this.renderLog();
+      return;
+    }
+    resizeImage(file, 1024).then(result => {
+      this.pendingImage = result;
+      const thumb = document.getElementById('halpish-img-thumb');
+      const row = document.getElementById('halpish-img-preview-row');
+      if(thumb && result.data){
+        thumb.src = 'data:' + result.type + ';base64,' + result.data;
+        if(row) row.style.display = 'flex';
+      }
+    }).catch(() => {
+      this.messages.push({ role: 'note', content: 'Could not read that image. Try a different file.' });
+      this.renderLog();
+    });
+  },
+
+  removeImage(){
+    this.pendingImage = null;
+    const row = document.getElementById('halpish-img-preview-row');
+    const input = document.getElementById('halpish-img-input');
+    if(row) row.style.display = 'none';
+    if(input) input.value = '';
+  },
+
+  async stream(text, images = []){
+    this.setBusy(true);
+    this.setStatus('Thinking');
+    this.lastFailedSend = null;
+
+    // The transcript sent to the server excludes notes and the greeting has no
+    // bearing on grounding, but it is harmless context so it goes along.
+    const history = this.messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .slice(0, -1)                       // the new message is sent separately
+      .slice(-24);
+
+    let bubble = null;
+    let acc = '';
+    const ensureBubble = () => {
+      if(bubble) return bubble;
+      this.setStatus('');
+      const log = document.getElementById('halpish-log');
+      bubble = document.createElement('div');
+      bubble.className = 'hp-msg bot';
+      log.appendChild(bubble);
+      return bubble;
+    };
+
+    try{
+      const bodyPayload = {
+        mode: 'chat',
+        message: text,
+        history,
+        summary: this.summary,
+        idToken: await this.idToken(),
+        context: this.context(),
+      };
+      if(images.length) bodyPayload.images = images;
+
+      const res = await fetch(HALPISH_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyPayload),
+      });
+
+      if(!res.ok || !res.body) throw new Error('unreachable');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let failed = null;
+
+      while(true){
+        const { value, done } = await reader.read();
+        if(done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for(const line of lines){
+          const trimmed = line.trim();
+          if(!trimmed.startsWith('data:')) continue;
+          let ev;
+          try { ev = JSON.parse(trimmed.slice(5).trim()); } catch { continue; }
+
+          if(ev.type === 'status'){
+            if(!acc) this.setStatus(ev.label || 'Thinking');
+          }else if(ev.type === 'text'){
+            acc += ev.delta;
+            ensureBubble().innerHTML = this.linkify(acc);
+            this.scrollLog();
+          }else if(ev.type === 'done'){
+            if(typeof ev.summary === 'string') this.summary = ev.summary;
+          }else if(ev.type === 'error'){
+            failed = ev.message;
+          }
+        }
+      }
+
+      this.setStatus('');
+
+      if(acc.trim()){
+        // A reply that arrived, even partially, is kept.
+        this.messages.push({ role: 'assistant', content: acc.trim() });
+        if(bubble) bubble.remove();
+        this.renderLog();
+      }
+      if(failed){
+        this.lastFailedSend = text;
+        this.messages.push({ role: 'note', content: failed, retryable: true });
+        this.renderLog();
+      }
+      if(!acc.trim() && !failed){
+        this.messages.push({ role: 'note', content: 'I did not manage to reply just then. Try sending that again.', retryable: true });
+        this.lastFailedSend = text;
+        this.renderLog();
+      }
+    }catch{
+      // Network-level failure, or the helper is not deployed on this host. The
+      // customer's conversation is untouched — only this reply is missing.
+      this.setStatus('');
+      if(bubble) bubble.remove();
+      this.lastFailedSend = text;
+      this.messages.push({
+        role: 'note',
+        content: 'I could not reach the store just now. Check your connection and try again, or message us on WhatsApp.',
+        retryable: true,
+      });
+      this.renderLog();
+    }
+
+    this.save();
+    this.setBusy(false);
+  },
+
+  retry(){
+    if(this.busy || !this.lastFailedSend) return;
+    const text = this.lastFailedSend;
+    this.messages = this.messages.filter(m => m.role !== 'note');
+    this.renderLog();
+    this.stream(text);
+  },
+};
+
+/* ---------------- Globals ---------------- */
+
+window.halpishAsk = function(text){
+  Halpish.messages = Halpish.messages.filter(m => m.role !== 'note');
+  Halpish.send(text);
+};
+window.halpishRetry = function(){ Halpish.retry(); };
+window.halpishRemoveImage = function(){ Halpish.removeImage(); };
+window.halpishFollowLink = function(){
+  // On mobile the panel covers the page, so tapping a product link should reveal it.
+  if(window.matchMedia('(max-width:767px)').matches) Halpish.close();
+};
+window.openHalpish = function(){ Halpish.mount(); Halpish.openPanel(); };
+window.halpishSyncVisibility = function(route){ if(Halpish.mounted) Halpish.syncVisibility(route); };
+
+Halpish.mount();
+
+window.halpishAsk = function(text){
+  Halpish.messages = Halpish.messages.filter(m => m.role !== 'note');
+  Halpish.send(text);
+};
+window.halpishRetry = function(){ Halpish.retry(); };
+window.halpishFollowLink = function(){
+  // On mobile the panel covers the page, so tapping a product link should reveal it.
+  if(window.matchMedia('(max-width:767px)').matches) Halpish.close();
+};
+window.openHalpish = function(){ Halpish.mount(); Halpish.openPanel(); };
+window.halpishSyncVisibility = function(route){ if(Halpish.mounted) Halpish.syncVisibility(route); };
+
+/* ---------------- Image resize utility ---------------- */
+
+async function resizeImage(file, maxDim = 1024){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if(width > maxDim || height > maxDim){
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      const type = file.type || 'image/jpeg';
+      const quality = type === 'image/png' ? 0.85 : 0.8;
+      resolve({
+        data: canvas.toDataURL(type, quality).split(',')[1],
+        type,
+      });
+    };
+    img.onerror = () => reject(new Error('Could not read image'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+Halpish.mount();
+
 </script>
 </body>
 </html>

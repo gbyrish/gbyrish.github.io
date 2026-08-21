@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "gbyrish-server",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8080"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/dev.js"],
       "port": 8080
     }
   ]
