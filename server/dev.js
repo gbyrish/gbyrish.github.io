@@ -94,7 +94,7 @@ createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
         ok: true,
-        model: process.env.HALPISH_MODEL || 'qwen/qwen3.6-27b',
+        model: process.env.HALPISH_MODEL || 'minimax/minimax-m3',
         keyConfigured: !!process.env.BLOCKRUN_API_KEY || !!process.env.GROQ_API_KEY,   // boolean only, never the key
         mock: !!process.env.HALPISH_MOCK,
       }));
@@ -108,5 +108,5 @@ createServer(async (req, res) => {
 }).listen(PORT, () => {
   console.log(`Gbyrish dev server on http://localhost:${PORT}`);
   const brKey = process.env.BLOCKRUN_API_KEY;
-  console.log(`Halpish model: ${process.env.HALPISH_MODEL || 'qwen/qwen3.6-27b'} | Groq ${process.env.GROQ_API_KEY ? 'primary' : 'MISSING'}${process.env.BLOCKRUN_API_KEY ? ' | BlockRun fallback' : ''}${process.env.HALPISH_MOCK ? ' | MOCK provider' : ''}`);
+  console.log(`Halpish model: ${process.env.HALPISH_MODEL || 'minimax/minimax-m3'} | OpenRouter ${process.env.OPENROUTER_API_KEY ? 'primary' : 'MISSING'} | Groq ${process.env.GROQ_API_KEY ? 'fallback' : 'off'}${process.env.HALPISH_MOCK ? ' | MOCK provider' : ''}`);
 });

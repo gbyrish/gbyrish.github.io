@@ -1,4 +1,4 @@
-// Halpish AI provider — SiliconFlow (primary) with Groq fallback.
+// Halpish AI provider — OpenRouter (primary) with Groq fallback.
 //
 // This is the ONLY module that talks to a model provider. Swapping models means
 // changing HALPISH_MODEL; swapping providers means changing this file. Nothing
@@ -7,18 +7,18 @@
 // The key is read from the environment on the server. It is never sent to the
 // browser and never appears in a response body.
 
-const SILICONFLOW_URL = 'https://api.siliconflow.cn/v1/chat/completions';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 export function modelName(){
-  return process.env.HALPISH_MODEL || 'Qwen/Qwen2.5-72B-Instruct';
+  return process.env.HALPISH_MODEL || 'minimax/minimax-m3';
 }
 
-function siliconflowKey(){
-  return process.env.SILICONFLOW_API_KEY;
+function openrouterKey(){
+  return process.env.OPENROUTER_API_KEY;
 }
 
-async function siliconflowCall({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
-  const key = siliconflowKey();
+async function openrouterCall({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
+  const key = openrouterKey();
   if(!key) return null;
 
   const body = {
@@ -33,11 +33,13 @@ async function siliconflowCall({ messages, tools, stream, maxTokens, temperature
     body.tool_choice = 'auto';
   }
 
-  const res = await fetch(SILICONFLOW_URL, {
+  const res = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${key}`,
       'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://gbyrish.com',
+      'X-Title': 'Gbyrish Halpish',
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
@@ -45,10 +47,8 @@ async function siliconflowCall({ messages, tools, stream, maxTokens, temperature
 
   if(!res.ok){
     const text = await res.text().catch(() => '');
-    // 401/invalid key means the SiliconFlow key isn't set up yet — fall through
-    // to Groq instead of blocking the user.
-    if(res.status === 401 || res.status === 403) return null;
-    throw new ProviderError(`SiliconFlow ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
+    if(res.status === 401 || res.status === 402 || res.status === 403) return null;
+    throw new ProviderError(`OpenRouter ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
   }
   return stream ? res : await res.json();
 }
@@ -150,15 +150,25 @@ export async function chat({ messages, tools, stream = false, maxTokens = 1024, 
 
   let lastErr = null;
 
-  // Try SiliconFlow first.
-  const sfRes = await siliconflowCall({ messages, tools, stream, maxTokens, temperature, timeoutMs });
-  if(sfRes) return sfRes;
+  // Try OpenRouter first.
+  try{
+    const orRes = await openrouterCall({ messages, tools, stream, maxTokens, temperature, timeoutMs });
+    if(orRes) return orRes;
+  }catch(e){
+    lastErr = e;
+    if(!(e instanceof ProviderError)) console.error('OpenRouter error:', e.message);
+  }
 
-  // SiliconFlow failed — try Groq fallback.
-  const groqRes = await groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs });
-  if(groqRes) return groqRes;
+  // OpenRouter failed — try Groq fallback.
+  try{
+    const groqRes = await groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs });
+    if(groqRes) return groqRes;
+  }catch(e){
+    lastErr = e;
+    if(!(e instanceof ProviderError)) console.error('Groq error:', e.message);
+  }
 
-  throw lastErr || new ProviderError('No AI provider available. Set SILICONFLOW_API_KEY or GROQ_API_KEY.', { kind: 'config' });
+  throw lastErr || new ProviderError('No AI provider available. Set OPENROUTER_API_KEY or GROQ_API_KEY.', { kind: 'config' });
 }
 
 /**

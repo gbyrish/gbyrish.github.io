@@ -414,7 +414,7 @@ export default async function handler(req, res){
     // The browser keeps the conversation; only this one reply failed.
     stream.send({ type: 'error', message: friendlyFor(err) });
     if(err && !(err instanceof ProviderError)) console.error('halpish turn failed:', err);
-    else if(err?.kind === 'billing' || err?.kind === 'auth' || err?.kind === 'config') console.error('halpish provider blocked:', err.message);
+    else console.error('halpish provider blocked:', err.message, 'kind:', err.kind, 'status:', err.status);
   }
   stream.end();
 }
