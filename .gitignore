@@ -1,0 +1,12 @@
+# Secrets — the AI Gateway key must never be committed.
+.env
+.env.local
+.env.*.local
+
+# Local scratch / verification artifacts
+_*.json
+_*.mjs
+_*.py
+
+node_modules/
+.vercel/
