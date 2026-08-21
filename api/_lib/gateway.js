@@ -1,4 +1,4 @@
-// Halpish AI provider — BlockRun (primary) with Groq and Anthropic fallback.
+// Halpish AI provider — Groq (primary, fast) with BlockRun fallback.
 //
 // This is the ONLY module that talks to a model provider. Swapping models means
 // changing HALPISH_MODEL; swapping providers means changing this file. Nothing
@@ -7,32 +7,16 @@
 // The key is read from the environment on the server. It is never sent to the
 // browser and never appears in a response body.
 
-const BLOCKRUN_URL = 'https://blockrun.ai/api/v1/chat/completions';
-
 export function modelName(){
-  return process.env.HALPISH_MODEL || 'nvidia/gpt-oss-120b';
+  return process.env.HALPISH_MODEL || 'qwen/qwen3.6-27b';
 }
 
-// BlockRun uses wallet-based auth (USDC on-chain).
-// If a BLOCKRUN_API_KEY / wallet address is provided, send it as Bearer.
-// If not, try the request without auth — some BlockRun endpoints accept it.
-function blockrunKey(){
-  return process.env.BLOCKRUN_API_KEY || null;
-}
-
-function blockrunHeaders(){
-  const key = blockrunKey();
-  const h = { 'Content-Type': 'application/json' };
-  if(key) h['Authorization'] = `Bearer ${key}`;
-  return h;
-}
-
-// Groq is used as a fallback when BlockRun fails.
+// Groq primary (fast, free tier).
 function groqKey(){
   return process.env.GROQ_API_KEY;
 }
 
-async function groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
+async function groqCall({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
   const key = groqKey();
   if(!key) return null;
 
@@ -65,6 +49,47 @@ async function groqFallback({ messages, tools, stream, maxTokens, temperature, t
   return stream ? res : await res.json();
 }
 
+// BlockRun fallback (wallet-based auth, no API key needed).
+const BLOCKRUN_URL = 'https://blockrun.ai/api/v1/chat/completions';
+
+function blockrunKey(){
+  return process.env.BLOCKRUN_API_KEY || null;
+}
+
+function blockrunHeaders(){
+  const key = blockrunKey();
+  const h = { 'Content-Type': 'application/json' };
+  if(key) h['Authorization'] = `Bearer ${key}`;
+  return h;
+}
+
+async function blockrunFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
+  const body = {
+    model: modelName(),
+    messages,
+    max_tokens: maxTokens,
+    temperature,
+    stream,
+  };
+  if(tools && tools.length){
+    body.tools = tools;
+    body.tool_choice = 'auto';
+  }
+
+  const res = await fetch(BLOCKRUN_URL, {
+    method: 'POST',
+    headers: blockrunHeaders(),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
+  });
+
+  if(!res.ok){
+    const text = await res.text().catch(() => '');
+    throw new ProviderError(`BlockRun ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
+  }
+  return stream ? res : await res.json();
+}
+
 // Anthropic direct API is used as a secondary fallback.
 const ANTHROPIC_KEY = () => process.env.ANTHROPIC_API_KEY;
 
@@ -72,7 +97,6 @@ async function anthropicFallback({ messages, tools, stream, maxTokens, temperatu
   const key = ANTHROPIC_KEY();
   if(!key) return null;
 
-  // Convert OpenAI-style messages/tools to Anthropic format.
   const antMessages = messages.map(m => {
     if(m.role === 'user' || m.role === 'system') return { role: m.role, content: m.content };
     if(m.role === 'assistant'){
@@ -191,8 +215,11 @@ export async function chat({ messages, tools, stream = false, maxTokens = 1024, 
 
   let lastErr = null;
 
-  // Always try BlockRun first (wallet-based, no API key needed).
-  // If a BLOCKRUN_API_KEY / wallet address is provided, it's sent as Bearer.
+  // Try Groq first (fast).
+  const groqRes = await groqCall({ messages, tools, stream, maxTokens, temperature, timeoutMs });
+  if(groqRes) return groqRes;
+
+  // Groq failed — try BlockRun fallback.
   for(let attempt = 1; attempt <= attempts; attempt++){
     const timer = AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined;
     let res;
@@ -207,9 +234,7 @@ export async function chat({ messages, tools, stream = false, maxTokens = 1024, 
       lastErr = new ProviderError(err?.name === 'TimeoutError' ? 'Model request timed out.' : `Network error: ${err?.message || err}`,
         { kind: err?.name === 'TimeoutError' ? 'timeout' : 'network', retryable: true });
       if(attempt < attempts){ await sleep(400 * attempt); continue; }
-      return await groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs }).catch(fbErr => {
-        throw lastErr;
-      });
+      break;
     }
 
     if(res.ok){ return stream ? res : await res.json(); }
@@ -224,16 +249,19 @@ export async function chat({ messages, tools, stream = false, maxTokens = 1024, 
       continue;
     }
 
-    // On auth/billing errors, try Groq fallback.
-    if(['billing','auth','config'].includes(kind)){
-      return await groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs }).catch(fbErr => {
-        throw lastErr;
-      });
+    // On auth/billing errors, try next fallback.
+    if(['billing','auth'].includes(kind)){
+      continue;
     }
 
     throw lastErr;
   }
-  throw lastErr || new ProviderError('Model request failed.', { kind: 'unknown' });
+
+  // BlockRun also failed — try Anthropic.
+  const antRes = await anthropicFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs });
+  if(antRes) return antRes;
+
+  throw lastErr || new ProviderError('All AI providers failed. Set GROQ_API_KEY or BLOCKRUN_API_KEY.', { kind: 'config' });
 }
 
 /**
