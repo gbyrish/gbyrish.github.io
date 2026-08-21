@@ -95,7 +95,7 @@ createServer(async (req, res) => {
       return res.end(JSON.stringify({
         ok: true,
         model: process.env.HALPISH_MODEL || 'minimax-m3',
-        keyConfigured: !!process.env.AIHUBMIX_API_KEY || !!process.env.GROQ_API_KEY,   // boolean only, never the key
+        keyConfigured: !!process.env.OLLAMA_API_KEY || !!process.env.GROQ_API_KEY,   // boolean only, never the key
         mock: !!process.env.HALPISH_MOCK,
       }));
     }
@@ -108,5 +108,5 @@ createServer(async (req, res) => {
 }).listen(PORT, () => {
   console.log(`Gbyrish dev server on http://localhost:${PORT}`);
   const brKey = process.env.BLOCKRUN_API_KEY;
-  console.log(`Halpish model: ${process.env.HALPISH_MODEL || 'minimax-m3'} | AIHubMix ${process.env.AIHUBMIX_API_KEY ? 'primary' : 'MISSING'} | Groq ${process.env.GROQ_API_KEY ? 'fallback' : 'off'}${process.env.HALPISH_MOCK ? ' | MOCK provider' : ''}`);
+  console.log(`Halpish model: ${process.env.HALPISH_MODEL || 'minimax-m3'} | Ollama ${process.env.OLLAMA_API_KEY ? 'primary' : 'MISSING'} | Groq ${process.env.GROQ_API_KEY ? 'fallback' : 'off'}${process.env.HALPISH_MOCK ? ' | MOCK provider' : ''}`);
 });
