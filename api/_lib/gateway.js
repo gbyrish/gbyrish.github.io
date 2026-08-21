@@ -1,4 +1,4 @@
-// Halpish AI provider — OpenRouter (primary) with Groq fallback.
+// Halpish AI provider — AIHubMix (primary) with Groq fallback.
 //
 // This is the ONLY module that talks to a model provider. Swapping models means
 // changing HALPISH_MODEL; swapping providers means changing this file. Nothing
@@ -7,18 +7,18 @@
 // The key is read from the environment on the server. It is never sent to the
 // browser and never appears in a response body.
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const AIHUBMIX_URL = 'https://aihubmix.com/v1/chat/completions';
 
 export function modelName(){
-  return process.env.HALPISH_MODEL || 'minimax/minimax-m3';
+  return process.env.HALPISH_MODEL || 'minimax-m3';
 }
 
-function openrouterKey(){
-  return process.env.OPENROUTER_API_KEY;
+function aihubmixKey(){
+  return process.env.AIHUBMIX_API_KEY;
 }
 
-async function openrouterCall({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
-  const key = openrouterKey();
+async function aihubmixCall({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
+  const key = aihubmixKey();
   if(!key) return null;
 
   const body = {
@@ -33,13 +33,11 @@ async function openrouterCall({ messages, tools, stream, maxTokens, temperature,
     body.tool_choice = 'auto';
   }
 
-  const res = await fetch(OPENROUTER_URL, {
+  const res = await fetch(AIHUBMIX_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${key}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://gbyrish.com',
-      'X-Title': 'Gbyrish Halpish',
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
@@ -48,7 +46,7 @@ async function openrouterCall({ messages, tools, stream, maxTokens, temperature,
   if(!res.ok){
     const text = await res.text().catch(() => '');
     if(res.status === 401 || res.status === 402 || res.status === 403) return null;
-    throw new ProviderError(`OpenRouter ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
+    throw new ProviderError(`AIHubMix ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
   }
   return stream ? res : await res.json();
 }
@@ -136,30 +134,18 @@ export async function chat({ messages, tools, stream = false, maxTokens = 1024, 
     return mockChat({ messages, tools, stream });
   }
 
-  const body = {
-    model: modelName(),
-    messages,
-    max_tokens: maxTokens,
-    temperature,
-    stream,
-  };
-  if(tools && tools.length){
-    body.tools = tools;
-    body.tool_choice = 'auto';
-  }
-
   let lastErr = null;
 
-  // Try OpenRouter first.
+  // Try AIHubMix first.
   try{
-    const orRes = await openrouterCall({ messages, tools, stream, maxTokens, temperature, timeoutMs });
-    if(orRes) return orRes;
+    const aiRes = await aihubmixCall({ messages, tools, stream, maxTokens, temperature, timeoutMs });
+    if(aiRes) return aiRes;
   }catch(e){
     lastErr = e;
-    if(!(e instanceof ProviderError)) console.error('OpenRouter error:', e.message);
+    if(!(e instanceof ProviderError)) console.error('AIHubMix error:', e.message);
   }
 
-  // OpenRouter failed — try Groq fallback.
+  // AIHubMix failed — try Groq fallback.
   try{
     const groqRes = await groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs });
     if(groqRes) return groqRes;
@@ -168,7 +154,7 @@ export async function chat({ messages, tools, stream = false, maxTokens = 1024, 
     if(!(e instanceof ProviderError)) console.error('Groq error:', e.message);
   }
 
-  throw lastErr || new ProviderError('No AI provider available. Set OPENROUTER_API_KEY or GROQ_API_KEY.', { kind: 'config' });
+  throw lastErr || new ProviderError('No AI provider available. Set AIHUBMIX_API_KEY or GROQ_API_KEY.', { kind: 'config' });
 }
 
 /**
