@@ -201,9 +201,9 @@ tailwind.config = {
   /* Drawers / overlays fade their backdrop instead of snapping */
   #cart-drawer-root .drawer-backdrop, .search-overlay { transition:opacity .3s ease; }
 
-  /* ===== Halpish (AI helper) ===== */
+  /* ===== Helpish (AI helper) ===== */
   /* Uses the same palette, fonts and radii as the rest of the site. */
-  #halpish-fab {
+  #helpish-fab {
     position:fixed; right:1rem; bottom:var(--fab-gap); z-index:60;
     width:3.25rem; height:3.25rem; border-radius:9999px;
     background:#8B6F4E; color:#fff; border:0; cursor:pointer;
@@ -212,15 +212,15 @@ tailwind.config = {
     -webkit-user-select:none; user-select:none;
     transition:transform .25s cubic-bezier(.22,.9,.3,1), background .2s;
   }
-  #halpish-fab:hover { background:#6B5637; transform:translateY(-2px) scale(1.04); }
-  #halpish-fab .hp-fab-label {
+  #helpish-fab:hover { background:#6B5637; transform:translateY(-2px) scale(1.04); }
+  #helpish-fab .hp-fab-label {
     position:absolute; right:calc(100% + .5rem); white-space:nowrap;
     background:#2C2C2C; color:#fff; font-size:11px; font-weight:500;
     padding:.3rem .6rem; border-radius:.5rem; opacity:0; pointer-events:none;
     transition:opacity .2s;
   }
-  #halpish-fab:hover .hp-fab-label { opacity:1; }
-  @media (max-width:767px){ #halpish-fab .hp-fab-label { display:none; } }
+  #helpish-fab:hover .hp-fab-label { opacity:1; }
+  @media (max-width:767px){ #helpish-fab .hp-fab-label { display:none; } }
 
   .hp-panel {
     position:fixed; z-index:120; display:flex; flex-direction:column;
@@ -326,7 +326,7 @@ tailwind.config = {
   .hp-draft-work i:nth-child(2) { animation-delay:.16s; }
   .hp-draft-work i:nth-child(3) { animation-delay:.32s; }
 
-  /* ===== Floating action buttons (Halpish, WhatsApp, back to top) =====
+  /* ===== Floating action buttons (Helpish, WhatsApp, back to top) =====
      Every offset comes off one variable, so the whole cluster clears whatever is
      pinned to the bottom of the viewport. Mobile has a 4rem bottom nav; desktop
      has nothing, which is why a single hard-coded offset left these hanging in
@@ -346,7 +346,7 @@ tailwind.config = {
   }
   /* The pointer belongs to the drag, so the browser must not claim it for a
      scroll or a native link-drag first. */
-  .fab, #halpish-fab { touch-action:none; }
+  .fab, #helpish-fab { touch-action:none; }
   .fab-wa { left:1rem; bottom:var(--fab-gap); background:#22C55E; }
   .fab-wa:hover { background:#16A34A; }
   .fab-top { right:1rem; bottom:calc(var(--fab-gap) + 3.5rem); background:#8B6F4E;
@@ -354,7 +354,7 @@ tailwind.config = {
   .fab-top.show { opacity:1; pointer-events:auto; }
   .fab-top:hover { background:#6B5637; }
   /* While dragging, the idle bob and the hover lift would both fight the pointer. */
-  .fab-dragging, #halpish-fab.fab-dragging {
+  .fab-dragging, #helpish-fab.fab-dragging {
     animation:none !important; transition:none !important;
     transform:none !important; cursor:grabbing; opacity:.92;
   }
@@ -362,7 +362,7 @@ tailwind.config = {
   .fab-reset.show { display:block; }
 
   @media (prefers-reduced-motion: reduce) {
-    #halpish-fab, .hp-panel, .hp-msg, .hp-status i, .hp-draft-preview, .hp-draft-work i { animation:none !important; transition:none !important; }
+    #helpish-fab, .hp-panel, .hp-msg, .hp-status i, .hp-draft-preview, .hp-draft-work i { animation:none !important; transition:none !important; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -377,9 +377,9 @@ tailwind.config = {
 <div id="app-root"></div>
 <div id="toast-container" class="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[999] flex flex-col gap-2 items-center max-h-[60vh] overflow-hidden pointer-events-none"></div>
 <div id="modal-root"></div>
-<!-- Halpish lives outside #app-root on purpose: doRender() replaces app-root's
+<!-- Helpish lives outside #app-root on purpose: doRender() replaces app-root's
      innerHTML wholesale, which would destroy an open chat mid-reply. -->
-<div id="halpish-root"></div>
+<div id="helpish-root"></div>
 <!-- Same reason: the floating buttons are draggable, and a re-render would throw
      away whatever position the customer put them in. Mounted once, never rebuilt. -->
 <div id="floating-root"></div>
@@ -3006,12 +3006,12 @@ function pageAdminProduct(editId){
   if(!requireAdmin()) return '';
   const editing = editId ? State.products[editId] : null;
   initPendingImagesIfNeeded(editId, editing);
-  resetHalpishDraftIfNeeded(editId);
+  resetHelpishDraftIfNeeded(editId);
   return `
   <div class="max-w-3xl mx-auto px-4 py-8 md:py-12">
     <h1 class="font-serif text-2xl md:text-3xl mb-6">${editing ? 'Edit Product' : 'Add New Product'}</h1>
     ${adminNav('#admin/product')}
-    ${halpishDraftBoxHtml()}
+    ${helpishDraftBoxHtml()}
     <form id="product-form" onsubmit="event.preventDefault(); window.saveProduct(this, '${editId||''}')" class="bg-white border border-gray-100 rounded-2xl p-6 space-y-5">
       <div>
         <label class="text-sm font-medium block mb-1">Product Name</label>
@@ -3109,84 +3109,84 @@ function renderImagePreviewGrid(){
   grid.innerHTML = imagePreviewGridHtml();
 }
 
-/* ---------- Halpish product drafting (admin only) ----------
+/* ---------- Helpish product drafting (admin only) ----------
    Sends the admin's plain-text description to the gated admin_draft endpoint and
    shows what came back as a read-only preview. Nothing is written to Firestore
    here: the admin presses "Fill the form", checks the values, adds photos with
    the existing picker, then submits the form themselves. Photos are never sent
    to the model — only the typed description is. */
-let halpishDraftData = null;
-let halpishDraftFor;
+let helpishDraftData = null;
+let helpishDraftFor;
 
 // Cleared only when switching to a different product, matching how pendingImages
 // behaves — a background re-render must not throw away a draft the admin is
 // still reading.
-function resetHalpishDraftIfNeeded(editId){
+function resetHelpishDraftIfNeeded(editId){
   const key = editId || '__new__';
-  if(halpishDraftFor !== key){ halpishDraftData = null; halpishDraftFor = key; }
+  if(helpishDraftFor !== key){ helpishDraftData = null; helpishDraftFor = key; }
 }
 
-function halpishDraftRow(label, value, hint){
+function helpishDraftRow(label, value, hint){
   const empty = value === null || value === undefined || value === '' || (Array.isArray(value) && !value.length);
   const shown = empty ? (hint || 'left blank') : (Array.isArray(value) ? value.join(', ') : String(value));
   return `<div class="hp-draft-row${empty?' empty':''}"><span>${escapeHtml(label)}</span><span>${escapeHtml(shown)}</span></div>`;
 }
 
-function halpishDraftPreviewHtml(){
-  const d = halpishDraftData;
+function helpishDraftPreviewHtml(){
+  const d = helpishDraftData;
   if(!d) return '';
   const money = (n) => (n === null || n === undefined) ? null : 'Rs. ' + Number(n).toLocaleString('en-US');
   const isDeal = d.category === 'Deals';
   return `
   <div class="hp-draft-preview mt-4 bg-white border border-gray-100 rounded-xl p-4">
     <p class="text-sm font-medium mb-2">Draft preview</p>
-    ${halpishDraftRow('Name', d.name)}
-    ${halpishDraftRow('Category', d.category, 'not recognised, pick one yourself')}
-    ${halpishDraftRow('Price', money(d.price), 'no price given')}
-    ${halpishDraftRow('Stock', d.stock, 'no stock count given')}
-    ${halpishDraftRow('Customization note', d.customizable ? 'Enabled' : 'Off')}
-    ${isDeal ? halpishDraftRow('Combined value', money(d.originalPrice)) : ''}
-    ${isDeal ? halpishDraftRow('Badge', d.badge) : ''}
-    ${isDeal ? halpishDraftRow('Included items', d.includedItems) : ''}
+    ${helpishDraftRow('Name', d.name)}
+    ${helpishDraftRow('Category', d.category, 'not recognised, pick one yourself')}
+    ${helpishDraftRow('Price', money(d.price), 'no price given')}
+    ${helpishDraftRow('Stock', d.stock, 'no stock count given')}
+    ${helpishDraftRow('Customization note', d.customizable ? 'Enabled' : 'Off')}
+    ${isDeal ? helpishDraftRow('Combined value', money(d.originalPrice)) : ''}
+    ${isDeal ? helpishDraftRow('Badge', d.badge) : ''}
+    ${isDeal ? helpishDraftRow('Included items', d.includedItems) : ''}
     <p class="text-xs text-gray-400 mt-3 mb-1">Description</p>
     <p class="text-sm text-gray-600 leading-relaxed">${escapeHtml(d.description || 'left blank')}</p>
-    ${d.notes ? `<p class="hp-draft-note mt-3">Halpish notes: ${escapeHtml(d.notes)}</p>` : ''}
+    ${d.notes ? `<p class="hp-draft-note mt-3">Helpish notes: ${escapeHtml(d.notes)}</p>` : ''}
     <p class="hp-draft-note mt-1">Nothing has been saved. Photos are not part of the draft, add them under Product Images below.</p>
     <div class="flex flex-wrap gap-2 mt-4">
-      <button type="button" onclick="window.halpishDraftApply()" class="btn-primary px-4 py-2.5 rounded-xl text-sm font-medium">Fill the form with this</button>
-      <button type="button" onclick="window.halpishDraftDiscard()" class="px-4 py-2.5 rounded-xl text-sm border border-gray-200 hover:bg-cream2">Discard draft</button>
+      <button type="button" onclick="window.helpishDraftApply()" class="btn-primary px-4 py-2.5 rounded-xl text-sm font-medium">Fill the form with this</button>
+      <button type="button" onclick="window.helpishDraftDiscard()" class="px-4 py-2.5 rounded-xl text-sm border border-gray-200 hover:bg-cream2">Discard draft</button>
     </div>
   </div>`;
 }
 
-function halpishDraftBoxHtml(){
+function helpishDraftBoxHtml(){
   return `
   <div class="hp-draft-box mb-6">
     <div class="flex items-start justify-between gap-3">
       <div>
-        <p class="text-sm font-medium">Draft this listing with Halpish</p>
-        <p class="hp-draft-note mt-0.5">Describe the piece in your own words. Halpish fills in the fields below for you to check.</p>
+        <p class="text-sm font-medium">Draft this listing with Helpish</p>
+        <p class="hp-draft-note mt-0.5">Describe the piece in your own words. Helpish fills in the fields below for you to check.</p>
       </div>
-      <span id="halpish-draft-status" class="hp-draft-work" hidden><span>Drafting the listing</span><i></i><i></i><i></i></span>
+      <span id="helpish-draft-status" class="hp-draft-work" hidden><span>Drafting the listing</span><i></i><i></i><i></i></span>
     </div>
-    <textarea id="halpish-draft-input" rows="3" placeholder="e.g. stainless steel rope chain bracelet, gold tone, adjustable, Rs. 850, 4 in stock" class="w-full mt-3 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white"></textarea>
+    <textarea id="helpish-draft-input" rows="3" placeholder="e.g. stainless steel rope chain bracelet, gold tone, adjustable, Rs. 850, 4 in stock" class="w-full mt-3 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white"></textarea>
     <div class="flex flex-wrap items-center gap-2 mt-2">
-      <button type="button" id="halpish-draft-btn" onclick="window.halpishDraftRun()" class="btn-primary px-4 py-2.5 rounded-xl text-sm font-medium">Draft with Halpish</button>
-      <span class="hp-draft-note">You review and publish. Halpish never saves a product.</span>
+      <button type="button" id="helpish-draft-btn" onclick="window.helpishDraftRun()" class="btn-primary px-4 py-2.5 rounded-xl text-sm font-medium">Draft with Helpish</button>
+      <span class="hp-draft-note">You review and publish. Helpish never saves a product.</span>
     </div>
-    <div id="halpish-draft-out">${halpishDraftPreviewHtml()}</div>
+    <div id="helpish-draft-out">${helpishDraftPreviewHtml()}</div>
   </div>`;
 }
 
-function renderHalpishDraft(){
-  const out = document.getElementById('halpish-draft-out');
-  if(out) out.innerHTML = halpishDraftPreviewHtml();
+function renderHelpishDraft(){
+  const out = document.getElementById('helpish-draft-out');
+  if(out) out.innerHTML = helpishDraftPreviewHtml();
 }
 
-window.halpishDraftRun = async function(){
-  const input = document.getElementById('halpish-draft-input');
-  const btn = document.getElementById('halpish-draft-btn');
-  const status = document.getElementById('halpish-draft-status');
+window.helpishDraftRun = async function(){
+  const input = document.getElementById('helpish-draft-input');
+  const btn = document.getElementById('helpish-draft-btn');
+  const status = document.getElementById('helpish-draft-status');
   if(!input || !btn) return;
 
   const message = input.value.trim();
@@ -3198,22 +3198,22 @@ window.halpishDraftRun = async function(){
 
   try{
     const idToken = State.user?.getIdToken ? await State.user.getIdToken().catch(()=>'') : '';
-    const res = await fetch(HALPISH_ENDPOINT, {
+    const res = await fetch(HELPISH_ENDPOINT, {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ mode:'admin_draft', message, idToken }),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok || !data.draft){
-      toast(data.error || 'Halpish could not draft that just now. Try again, or fill the form yourself.','err');
+      toast(data.error || 'Helpish could not draft that just now. Try again, or fill the form yourself.','err');
       return;
     }
-    halpishDraftData = data.draft;
-    renderHalpishDraft();
-    document.getElementById('halpish-draft-out')?.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    helpishDraftData = data.draft;
+    renderHelpishDraft();
+    document.getElementById('helpish-draft-out')?.scrollIntoView({ behavior:'smooth', block:'nearest' });
   }catch(err){
-    console.error('Halpish draft failed:', err);
-    toast('Could not reach Halpish. Fill the form in yourself, or try again in a moment.','err');
+    console.error('Helpish draft failed:', err);
+    toast('Could not reach Helpish. Fill the form in yourself, or try again in a moment.','err');
   }finally{
     btn.disabled = false;
     btn.classList.remove('opacity-50');
@@ -3224,8 +3224,8 @@ window.halpishDraftRun = async function(){
 // Fills the real form fields and stops there. Saving stays with the admin's own
 // submit, so a draft can never publish a product on its own. Fields the draft
 // left empty are not touched, so anything already typed in survives.
-window.halpishDraftApply = function(){
-  const d = halpishDraftData;
+window.helpishDraftApply = function(){
+  const d = helpishDraftData;
   const form = document.getElementById('product-form');
   if(!d || !form) return;
 
@@ -3254,9 +3254,9 @@ window.halpishDraftApply = function(){
   form.scrollIntoView({ behavior:'smooth', block:'start' });
 };
 
-window.halpishDraftDiscard = function(){
-  halpishDraftData = null;
-  renderHalpishDraft();
+window.helpishDraftDiscard = function(){
+  helpishDraftData = null;
+  renderHelpishDraft();
 };
 
 window.toggleDealFields = function(category){
@@ -3739,7 +3739,7 @@ function pageAdminAgent(){
   return `
   <div class="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
     <h1 class="font-serif text-2xl md:text-3xl mb-1">Store Management Agent</h1>
-    <p class="text-gray-500 text-sm mb-6">Ask Halpish to manage orders, inventory, discounts, and settings. Write actions require your confirmation.</p>
+    <p class="text-gray-500 text-sm mb-6">Ask Helpish to manage orders, inventory, discounts, and settings. Write actions require your confirmation.</p>
     ${adminNav('#admin/agent')}
 
     <div id="admin-agent-log" class="bg-white border border-gray-100 rounded-2xl p-4 md:p-6 mb-4 min-h-[240px] max-h-[50vh] overflow-y-auto flex flex-col gap-3"></div>
@@ -3829,7 +3829,7 @@ window.saveSiteSettings = async function(form){
   }
 };
 
-/* ---------------- Admin Agent (Halpish admin mode) ---------------- */
+/* ---------------- Admin Agent (Helpish admin mode) ---------------- */
 
 window.adminAgentMessages = [];
 window.adminAgentSummary = '';
@@ -3857,7 +3857,7 @@ window.adminAgentSend = async function(){
   window.adminAgentPendingConfirm = null;
 
   try{
-    const res = await fetch('/api/halpish', {
+    const res = await fetch('/api/helpish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -3959,7 +3959,7 @@ window.adminAgentConfirm = async function(){
   const log = document.getElementById('admin-agent-log');
 
   try{
-    const res = await fetch('/api/halpish', {
+    const res = await fetch('/api/helpish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -4793,9 +4793,9 @@ function doRender(){
     const _routeChanged = route !== _lastRoute;
     afterRender(_routeChanged);
     _lastRoute = route;
-    // Window property, not `typeof Halpish` — Halpish is a module-scoped const,
+    // Window property, not `typeof Helpish` — Helpish is a module-scoped const,
     // and typeof on a const still in its TDZ throws.
-    if(typeof window.halpishSyncVisibility === 'function') window.halpishSyncVisibility(route);
+    if(typeof window.helpishSyncVisibility === 'function') window.helpishSyncVisibility(route);
     // The product page pins an add-to-cart bar above the mobile nav. The floating
     // buttons read this class through --fab-gap so they sit above it rather than on it.
     document.body.classList.toggle('has-sticky-bar', route.startsWith('#product/'));
@@ -4910,7 +4910,7 @@ window.addEventListener('scroll', syncBackToTop, { passive: true });
    The customer decides where these live; the position survives reload and is
    clamped into the viewport so nothing can be lost off an edge. */
 const FAB_POS_KEY = 'gbyrish_fab_pos';
-const FAB_IDS = ['halpish-fab', 'wa-fab', 'back-to-top'];
+const FAB_IDS = ['helpish-fab', 'wa-fab', 'back-to-top'];
 const DRAG_THRESHOLD = 6;   // px of movement before a press counts as a drag
 const CLICK_BLOCK_MS = 320; // window after a drag in which a click is ignored
 
@@ -5019,7 +5019,7 @@ function bindFabDrag(el, id){
   });
 }
 
-/* ---------------- Draggable Halpish Panel (desktop) ---------------- */
+/* ---------------- Draggable Helpish Panel (desktop) ---------------- */
 
 const HP_POS_KEY = 'gbyrish-hp-pos';
 let hpPos = {};
@@ -5030,7 +5030,7 @@ function saveHpPos(){
 }
 
 function applyHpPos(){
-  const panel = document.getElementById('halpish-panel');
+  const panel = document.getElementById('helpish-panel');
   if(!panel || !hpPos.left) return;
   const w = panel.offsetWidth || 384;
   const h = panel.offsetHeight || 500;
@@ -5045,7 +5045,7 @@ function applyHpPos(){
 }
 
 window.initDraggablePanel = function(){
-  const panel = document.getElementById('halpish-panel');
+  const panel = document.getElementById('helpish-panel');
   const head = panel?.querySelector('.hp-head');
   if(!panel || !head) return;
 
@@ -5187,7 +5187,7 @@ window.updateDarkIcon = function(isDark){
 
 // Keyboard shortcuts
 window.addEventListener('keydown', (e) => {
-  if(e.key === 'Escape' && Halpish.open){ Halpish.close(); return; }
+  if(e.key === 'Escape' && Helpish.open){ Helpish.close(); return; }
   if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
   if(e.key === 'Escape'){
     if(State.searchOpen){ window.openSearch(); }
@@ -5197,20 +5197,20 @@ window.addEventListener('keydown', (e) => {
 });
 
 /* ==================================================================
-   Halpish — the Gbyrish helper bot (customer chat)
+   Helpish — the Gbyrish helper bot (customer chat)
    ==================================================================
-   Mounted once into #halpish-root, which sits outside #app-root. doRender()
+   Mounted once into #helpish-root, which sits outside #app-root. doRender()
    rebuilds app-root's innerHTML on every route change and every Firestore
-   snapshot; keeping Halpish outside it means an open chat is never destroyed
+   snapshot; keeping Helpish outside it means an open chat is never destroyed
    mid-reply and the transcript survives navigation.
 
-   All model access goes through /api/halpish. No API key exists in this file,
+   All model access goes through /api/helpish. No API key exists in this file,
    and the browser never learns which provider or model is in use. */
 
-const HALPISH_ENDPOINT = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? '/api/halpish' : '/api/halpish';
-const HALPISH_STORE_KEY = 'gbyrish_halpish_chat';
+const HELPISH_ENDPOINT = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? '/api/helpish' : '/api/helpish';
+const HELPISH_STORE_KEY = 'gbyrish_helpish_chat';
 
-const Halpish = {
+const Helpish = {
   open: false,
   busy: false,
   messages: [],        // [{ role:'user'|'assistant'|'note', content }]
@@ -5221,7 +5221,7 @@ const Halpish = {
   /* ---------- persistence ---------- */
   load(){
     try{
-      const raw = localStorage.getItem(HALPISH_STORE_KEY);
+      const raw = localStorage.getItem(HELPISH_STORE_KEY);
       if(!raw) return;
       const saved = JSON.parse(raw);
       if(Array.isArray(saved.messages)) this.messages = saved.messages.slice(-40);
@@ -5230,7 +5230,7 @@ const Halpish = {
   },
   save(){
     try{
-      localStorage.setItem(HALPISH_STORE_KEY, JSON.stringify({
+      localStorage.setItem(HELPISH_STORE_KEY, JSON.stringify({
         // Notes are transient UI, not conversation — they are not replayed.
         messages: this.messages.filter(m => m.role !== 'note').slice(-40),
         summary: this.summary,
@@ -5241,43 +5241,43 @@ const Halpish = {
   /* ---------- mount ---------- */
   mount(){
     if(this.mounted) return;
-    const root = document.getElementById('halpish-root');
+    const root = document.getElementById('helpish-root');
     if(!root) return;
     this.mounted = true;
     this.load();
 
     root.innerHTML = `
-      <button id="halpish-fab" aria-label="Open Halpish, the Gbyrish helper" aria-expanded="false">
-        <span class="hp-fab-label">Ask Halpish</span>
+      <button id="helpish-fab" aria-label="Open Helpish, the Gbyrish helper" aria-expanded="false">
+        <span class="hp-fab-label">Ask Helpish</span>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
         </svg>
       </button>
-      <section class="hp-panel" id="halpish-panel" role="dialog" aria-modal="false" aria-label="Halpish helper">
+      <section class="hp-panel" id="helpish-panel" role="dialog" aria-modal="false" aria-label="Helpish helper">
         <div class="hp-head">
           <div class="hp-mark" aria-hidden="true">H</div>
           <div style="min-width:0">
-            <p class="font-serif" style="font-size:.95rem;font-weight:600;line-height:1.2">Halpish</p>
+            <p class="font-serif" style="font-size:.95rem;font-weight:600;line-height:1.2">Helpish</p>
             <p style="font-size:.7rem;color:#8a7f74;line-height:1.2">Gbyrish helper</p>
           </div>
-          <button class="hp-close" id="halpish-reset" title="Start a new chat" aria-label="Start a new chat" style="margin-left:auto;font-size:1rem">&#8635;</button>
+          <button class="hp-close" id="helpish-reset" title="Start a new chat" aria-label="Start a new chat" style="margin-left:auto;font-size:1rem">&#8635;</button>
           <button class="hp-close fab-reset" id="fab-reset" title="Move the buttons back to their usual spots" aria-label="Reset button positions" style="margin-left:0;font-size:.95rem">&#10226;</button>
-          <button class="hp-close" id="halpish-x" title="Close" aria-label="Close Halpish" style="margin-left:0">&times;</button>
+          <button class="hp-close" id="helpish-x" title="Close" aria-label="Close Helpish" style="margin-left:0">&times;</button>
         </div>
-        <div class="hp-log" id="halpish-log" aria-live="polite"></div>
-        <div class="hp-chips" id="halpish-chips"></div>
-        <form class="hp-form" id="halpish-form" autocomplete="off">
-          <div id="halpish-img-preview-row" class="hp-img-row" style="display:none;padding:0 .5rem">
-            <img id="halpish-img-thumb" style="max-height:40px;border-radius:6px;border:1px solid #E8DFD5" alt="">
-            <button type="button" onclick="window.halpishRemoveImage()" style="background:none;border:none;color:#8a7f74;cursor:pointer;font-size:1.1rem;padding:0 .2rem" title="Remove image">&times;</button>
+        <div class="hp-log" id="helpish-log" aria-live="polite"></div>
+        <div class="hp-chips" id="helpish-chips"></div>
+        <form class="hp-form" id="helpish-form" autocomplete="off">
+          <div id="helpish-img-preview-row" class="hp-img-row" style="display:none;padding:0 .5rem">
+            <img id="helpish-img-thumb" style="max-height:40px;border-radius:6px;border:1px solid #E8DFD5" alt="">
+            <button type="button" onclick="window.helpishRemoveImage()" style="background:none;border:none;color:#8a7f74;cursor:pointer;font-size:1.1rem;padding:0 .2rem" title="Remove image">&times;</button>
           </div>
           <div class="hp-input-row">
-            <input class="hp-input" id="halpish-input" type="text" maxlength="500" placeholder="Ask about a product, gift or order" aria-label="Message Halpish">
-            <button type="button" id="halpish-img-btn" class="hp-img-btn" title="Attach an image" aria-label="Attach image">
+            <input class="hp-input" id="helpish-input" type="text" maxlength="500" placeholder="Ask about a product, gift or order" aria-label="Message Helpish">
+            <button type="button" id="helpish-img-btn" class="hp-img-btn" title="Attach an image" aria-label="Attach image">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
             </button>
-            <input type="file" id="halpish-img-input" accept="image/jpeg,image/png,image/webp" hidden>
-            <button class="hp-send" id="halpish-send" type="submit" aria-label="Send">
+            <input type="file" id="helpish-img-input" accept="image/jpeg,image/png,image/webp" hidden>
+            <button class="hp-send" id="helpish-send" type="submit" aria-label="Send">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
             </button>
           </div>
@@ -5288,27 +5288,27 @@ const Halpish = {
     // it was registered first.
     if(typeof window.initDraggableFabs === 'function') window.initDraggableFabs();
 
-    document.getElementById('halpish-fab').onclick = () => this.toggle();
-    document.getElementById('halpish-x').onclick = () => this.close();
-    document.getElementById('halpish-reset').onclick = () => this.reset();
+    document.getElementById('helpish-fab').onclick = () => this.toggle();
+    document.getElementById('helpish-x').onclick = () => this.close();
+    document.getElementById('helpish-reset').onclick = () => this.reset();
     document.getElementById('fab-reset').onclick = () => window.resetFabPositions();
-    document.getElementById('halpish-form').onsubmit = (e) => {
+    document.getElementById('helpish-form').onsubmit = (e) => {
       e.preventDefault();
-      const input = document.getElementById('halpish-input');
+      const input = document.getElementById('helpish-input');
       const text = input.value.trim();
-      if(!text && !Halpish.pendingImage) return;
+      if(!text && !Helpish.pendingImage) return;
       input.value = '';
       this.send(text);
     };
 
     // Image upload.
-    const imgBtn = document.getElementById('halpish-img-btn');
-    const imgInput = document.getElementById('halpish-img-input');
+    const imgBtn = document.getElementById('helpish-img-btn');
+    const imgInput = document.getElementById('helpish-img-input');
     if(imgBtn && imgInput){
       imgBtn.onclick = () => imgInput.click();
       imgInput.onchange = (e) => {
         const file = e.target.files?.[0];
-        if(file) Halpish.attachImage(file);
+        if(file) Helpish.attachImage(file);
       };
     }
 
@@ -5332,7 +5332,7 @@ const Halpish = {
   // on #admin/products it sat on top of the Publish button.
   syncVisibility(route){
     const onAdmin = String(route || '').startsWith('#admin');
-    for(const id of ['halpish-fab', 'wa-fab']){
+    for(const id of ['helpish-fab', 'wa-fab']){
       const el = document.getElementById(id);
       if(el) el.style.display = onAdmin ? 'none' : '';
     }
@@ -5344,8 +5344,8 @@ const Halpish = {
 
   openPanel(){
     this.open = true;
-    const panel = document.getElementById('halpish-panel');
-    const fab = document.getElementById('halpish-fab');
+    const panel = document.getElementById('helpish-panel');
+    const fab = document.getElementById('helpish-fab');
     if(panel) panel.classList.add('open');
     if(fab) fab.setAttribute('aria-expanded', 'true');
     // Full-sheet on mobile: stop the page behind it from scrolling.
@@ -5353,13 +5353,13 @@ const Halpish = {
     if(!this.messages.length) this.greet();
     this.renderChips();
     this.scrollLog();
-    setTimeout(() => { const i = document.getElementById('halpish-input'); if(i && window.innerWidth >= 768) i.focus(); }, 260);
+    setTimeout(() => { const i = document.getElementById('helpish-input'); if(i && window.innerWidth >= 768) i.focus(); }, 260);
   },
 
   close(){
     this.open = false;
-    const panel = document.getElementById('halpish-panel');
-    const fab = document.getElementById('halpish-fab');
+    const panel = document.getElementById('helpish-panel');
+    const fab = document.getElementById('helpish-fab');
     if(panel) panel.classList.remove('open');
     if(fab) fab.setAttribute('aria-expanded', 'false');
     document.body.style.overflow = '';
@@ -5404,16 +5404,16 @@ const Halpish = {
       else if(route === '#faq') label = 'FAQ';
       else if(route.startsWith('#track-order')) label = 'Track your order';
       else label = 'Browse';
-      return `<a href="${escapeHtml(route)}" onclick="window.halpishFollowLink()">${label}</a>`;
+      return `<a href="${escapeHtml(route)}" onclick="window.helpishFollowLink()">${label}</a>`;
     });
   },
 
   renderLog(){
-    const log = document.getElementById('halpish-log');
+    const log = document.getElementById('helpish-log');
     if(!log) return;
     log.innerHTML = this.messages.map((m, i) => {
       if(m.role === 'note'){
-        const retry = m.retryable ? ` <button class="hp-chip" style="margin-left:.4rem;padding:.15rem .55rem" onclick="window.halpishRetry()">Try again</button>` : '';
+        const retry = m.retryable ? ` <button class="hp-chip" style="margin-left:.4rem;padding:.15rem .55rem" onclick="window.helpishRetry()">Try again</button>` : '';
         return `<div class="hp-msg note">${escapeHtml(m.content)}${retry}</div>`;
       }
       const cls = m.role === 'user' ? 'me' : 'bot';
@@ -5423,7 +5423,7 @@ const Halpish = {
   },
 
   renderChips(){
-    const box = document.getElementById('halpish-chips');
+    const box = document.getElementById('helpish-chips');
     if(!box) return;
     if(this.busy || this.messages.filter(m => m.role === 'user').length > 0){ box.innerHTML = ''; return; }
 
@@ -5441,19 +5441,19 @@ const Halpish = {
     if(State.user) chips.push('Check my order');
 
     box.innerHTML = chips.slice(0, 4).map(c =>
-      `<button class="hp-chip" onclick="window.halpishAsk(${JSON.stringify(c).replace(/"/g, '&quot;')})">${escapeHtml(c)}</button>`
+      `<button class="hp-chip" onclick="window.helpishAsk(${JSON.stringify(c).replace(/"/g, '&quot;')})">${escapeHtml(c)}</button>`
     ).join('');
   },
 
   setStatus(label){
-    const log = document.getElementById('halpish-log');
+    const log = document.getElementById('helpish-log');
     if(!log) return;
-    let el = document.getElementById('halpish-status');
+    let el = document.getElementById('helpish-status');
     if(!label){ if(el) el.remove(); return; }
     if(!el){
       el = document.createElement('div');
       el.className = 'hp-status';
-      el.id = 'halpish-status';
+      el.id = 'helpish-status';
       log.appendChild(el);
     }
     el.innerHTML = `<i></i><i></i><i></i><span>${escapeHtml(label)}</span>`;
@@ -5461,14 +5461,14 @@ const Halpish = {
   },
 
   scrollLog(){
-    const log = document.getElementById('halpish-log');
+    const log = document.getElementById('helpish-log');
     if(log) log.scrollTop = log.scrollHeight;
   },
 
   setBusy(busy){
     this.busy = busy;
-    const send = document.getElementById('halpish-send');
-    const input = document.getElementById('halpish-input');
+    const send = document.getElementById('helpish-send');
+    const input = document.getElementById('helpish-input');
     if(send) send.disabled = busy;
     if(input) input.disabled = busy;
     if(!busy && input && window.innerWidth >= 768) input.focus();
@@ -5520,8 +5520,8 @@ const Halpish = {
     }
     resizeImage(file, 1024).then(result => {
       this.pendingImage = result;
-      const thumb = document.getElementById('halpish-img-thumb');
-      const row = document.getElementById('halpish-img-preview-row');
+      const thumb = document.getElementById('helpish-img-thumb');
+      const row = document.getElementById('helpish-img-preview-row');
       if(thumb && result.data){
         thumb.src = 'data:' + result.type + ';base64,' + result.data;
         if(row) row.style.display = 'flex';
@@ -5534,8 +5534,8 @@ const Halpish = {
 
   removeImage(){
     this.pendingImage = null;
-    const row = document.getElementById('halpish-img-preview-row');
-    const input = document.getElementById('halpish-img-input');
+    const row = document.getElementById('helpish-img-preview-row');
+    const input = document.getElementById('helpish-img-input');
     if(row) row.style.display = 'none';
     if(input) input.value = '';
   },
@@ -5557,7 +5557,7 @@ const Halpish = {
     const ensureBubble = () => {
       if(bubble) return bubble;
       this.setStatus('');
-      const log = document.getElementById('halpish-log');
+      const log = document.getElementById('helpish-log');
       bubble = document.createElement('div');
       bubble.className = 'hp-msg bot';
       log.appendChild(bubble);
@@ -5575,7 +5575,7 @@ const Halpish = {
       };
       if(images.length) bodyPayload.images = images;
 
-      const res = await fetch(HALPISH_ENDPOINT, {
+      const res = await fetch(HELPISH_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyPayload),
@@ -5662,32 +5662,32 @@ const Halpish = {
 
 /* ---------------- Globals ---------------- */
 
-window.halpishAsk = function(text){
-  Halpish.messages = Halpish.messages.filter(m => m.role !== 'note');
-  Halpish.send(text);
+window.helpishAsk = function(text){
+  Helpish.messages = Helpish.messages.filter(m => m.role !== 'note');
+  Helpish.send(text);
 };
-window.halpishRetry = function(){ Halpish.retry(); };
-window.halpishRemoveImage = function(){ Halpish.removeImage(); };
-window.halpishFollowLink = function(){
+window.helpishRetry = function(){ Helpish.retry(); };
+window.helpishRemoveImage = function(){ Helpish.removeImage(); };
+window.helpishFollowLink = function(){
   // On mobile the panel covers the page, so tapping a product link should reveal it.
-  if(window.matchMedia('(max-width:767px)').matches) Halpish.close();
+  if(window.matchMedia('(max-width:767px)').matches) Helpish.close();
 };
-window.openHalpish = function(){ Halpish.mount(); Halpish.openPanel(); };
-window.halpishSyncVisibility = function(route){ if(Halpish.mounted) Halpish.syncVisibility(route); };
+window.openHelpish = function(){ Helpish.mount(); Helpish.openPanel(); };
+window.helpishSyncVisibility = function(route){ if(Helpish.mounted) Helpish.syncVisibility(route); };
 
-Halpish.mount();
+Helpish.mount();
 
-window.halpishAsk = function(text){
-  Halpish.messages = Halpish.messages.filter(m => m.role !== 'note');
-  Halpish.send(text);
+window.helpishAsk = function(text){
+  Helpish.messages = Helpish.messages.filter(m => m.role !== 'note');
+  Helpish.send(text);
 };
-window.halpishRetry = function(){ Halpish.retry(); };
-window.halpishFollowLink = function(){
+window.helpishRetry = function(){ Helpish.retry(); };
+window.helpishFollowLink = function(){
   // On mobile the panel covers the page, so tapping a product link should reveal it.
-  if(window.matchMedia('(max-width:767px)').matches) Halpish.close();
+  if(window.matchMedia('(max-width:767px)').matches) Helpish.close();
 };
-window.openHalpish = function(){ Halpish.mount(); Halpish.openPanel(); };
-window.halpishSyncVisibility = function(route){ if(Halpish.mounted) Halpish.syncVisibility(route); };
+window.openHelpish = function(){ Helpish.mount(); Helpish.openPanel(); };
+window.helpishSyncVisibility = function(route){ if(Helpish.mounted) Helpish.syncVisibility(route); };
 
 /* ---------------- Image resize utility ---------------- */
 
@@ -5717,7 +5717,7 @@ async function resizeImage(file, maxDim = 1024){
   });
 }
 
-Halpish.mount();
+Helpish.mount();
 
 </script>
 </body>

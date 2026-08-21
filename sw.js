@@ -26,8 +26,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Never touch the Halpish endpoint or any other request that is not a plain GET.
-  // /api/halpish streams its reply, and cloning a stream into the cache both buffers
+  // Never touch the Helpish endpoint or any other request that is not a plain GET.
+  // /api/helpish streams its reply, and cloning a stream into the cache both buffers
   // the whole response and rejects (the Cache API refuses non-GET requests), so the
   // handler has no business intercepting it at all.
   if(e.request.method !== 'GET' || url.pathname.startsWith('/api/')) return;

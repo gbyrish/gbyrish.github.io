@@ -1,4 +1,4 @@
-// Halpish tools — the complete set of store functions the model may call.
+// Helpish tools — the complete set of store functions the model may call.
 //
 // Two rules hold this file together:
 //   1. Every tool reads real store data through api/_lib/store.js. Nothing here
@@ -7,9 +7,9 @@
 //      for a tool by name; whether that tool runs, and for whom, is decided
 //      here — never by anything the customer types.
 //
-// There are deliberately NO write tools. Halpish cannot create, edit or delete
+// There are deliberately NO write tools. Helpish cannot create, edit or delete
 // anything in the store. Admin product drafting is a separate, gated mode in
-// api/halpish.js that returns a draft for a human to confirm.
+// api/helpish.js that returns a draft for a human to confirm.
 
 import {
   getProducts, getSettings, publicProduct, effectivePrice, cleanCopy,
@@ -199,7 +199,7 @@ async function resolveProduct({ productId, name }){
 
   // Word-overlap fallback. The model may paraphrase — "Elara bangle" for
   // "Elara Silver Bangle", or wrap the name in a question. Without this the tool
-  // returns "no such product" and Halpish tells the customer, wrongly, that the
+  // returns "no such product" and Helpish tells the customer, wrongly, that the
   // store does not stock it.
   const words = n.split(/[^a-z0-9]+/).filter(w => w.length > 2 && !NAME_NOISE.has(w));
   if(!words.length) return null;

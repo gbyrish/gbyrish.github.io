@@ -1,8 +1,8 @@
-// Halpish Admin Tools — read and write operations for store management.
+// Helpish Admin Tools — read and write operations for store management.
 //
 // These tools are ONLY exposed to authenticated admins via the admin agent
 // mode. They are NEVER available in customer chat. The permission gate is
-// enforced by halpish.js (admin auth check) and by this module (CUSTOMER_TOOLS
+// enforced by helpish.js (admin auth check) and by this module (CUSTOMER_TOOLS
 // in tools.js cannot reach these).
 
 import {

@@ -1,13 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/halpish.js": {
+    "api/helpish.js": {
       "maxDuration": 60
     }
   },
   "headers": [
     {
-      "source": "/api/halpish",
+      "source": "/api/helpish",
       "headers": [
         { "key": "Cache-Control", "value": "no-store" }
       ]

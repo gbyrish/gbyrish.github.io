@@ -1,6 +1,6 @@
-// Halpish — the Gbyrish AI helper endpoint.
+// Helpish — the Gbyrish AI helper endpoint.
 //
-// POST /api/halpish
+// POST /api/helpish
 //   { mode: 'chat',        message, history[], summary, idToken?, context? }
 //   { mode: 'admin_draft', message, idToken }            -> admin only
 //
@@ -45,7 +45,7 @@ const friendlyFor = (err) => FRIENDLY[err?.kind] || FRIENDLY.unknown;
 
 /* ---------------- Prompts ---------------- */
 
-// Halpish's identity, voice, grounding rules and boundaries live in
+// Helpish's identity, voice, grounding rules and boundaries live in
 // _lib/persona.js. That is the file to edit when tuning how it behaves.
 
 
@@ -91,7 +91,7 @@ async function readBody(req){
 /* ---------------- Chat turn: stream + tool loop ---------------- */
 
 // Short labels for the in-chat progress line. This is a real description of what
-// Halpish is doing, not a generic spinner.
+// Helpish is doing, not a generic spinner.
 const TOOL_LABELS = {
   searchProducts: 'Looking through the catalogue',
   getProductDetails: 'Reading the product details',
@@ -296,7 +296,7 @@ export default async function handler(req, res){
   const user = await verifyIdToken(idToken);
 
   /* --- Admin modes: gated to verified admins only --- */
-  if(!process.env.HALPISH_MOCK && (mode === 'admin_draft' || mode === 'admin_chat' || mode === 'admin_confirm')){
+  if(!process.env.HELPISH_MOCK && (mode === 'admin_draft' || mode === 'admin_chat' || mode === 'admin_confirm')){
     const admin = user ? await isAdmin(user, idToken) : false;
     if(!admin){
       res.writeHead(403, { 'Content-Type': 'application/json' });
@@ -413,8 +413,8 @@ export default async function handler(req, res){
   }catch(err){
     // The browser keeps the conversation; only this one reply failed.
     stream.send({ type: 'error', message: friendlyFor(err) });
-    if(err && !(err instanceof ProviderError)) console.error('halpish turn failed:', err);
-    else console.error('halpish provider blocked:', err.message, 'kind:', err.kind, 'status:', err.status);
+    if(err && !(err instanceof ProviderError)) console.error('helpish turn failed:', err);
+    else console.error('helpish provider blocked:', err.message, 'kind:', err.kind, 'status:', err.status);
   }
   stream.end();
 }

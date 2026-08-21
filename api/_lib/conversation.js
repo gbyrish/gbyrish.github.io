@@ -1,4 +1,4 @@
-// Halpish conversation shaping.
+// Helpish conversation shaping.
 //
 // The browser sends the whole visible conversation; the server decides what the
 // model actually sees. Two jobs:
@@ -36,7 +36,7 @@ export function sanitizeHistory(history){
  */
 export async function summarizeOlder(older){
   const transcript = older
-    .map(m => `${m.role === 'user' ? 'Customer' : 'Halpish'}: ${m.content}`)
+    .map(m => `${m.role === 'user' ? 'Customer' : 'Helpish'}: ${m.content}`)
     .join('\n')
     .slice(0, 8000);
 

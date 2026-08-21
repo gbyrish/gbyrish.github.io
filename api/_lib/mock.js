@@ -1,8 +1,8 @@
 // Test-only stand-in for the AI Gateway.
 //
-// Enabled with HALPISH_MOCK=1. It exists so the tool layer, permission gating,
+// Enabled with HELPISH_MOCK=1. It exists so the tool layer, permission gating,
 // streaming, conversation trimming and the chat UI can all be exercised
-// end-to-end without spending a real model call — and so Halpish stays testable
+// end-to-end without spending a real model call — and so Helpish stays testable
 // if the gateway is unreachable.
 //
 // It is not a model. It picks a plausible tool for the question, then reads the

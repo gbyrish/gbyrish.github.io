@@ -1,10 +1,10 @@
-// Local dev server for Gbyrish + Halpish.
+// Local dev server for Gbyrish + Helpish.
 //
 //   node server/dev.js            -> http://localhost:8080
 //
-// Serves the site as static files and runs /api/halpish in-process, so the AI
+// Serves the site as static files and runs /api/helpish in-process, so the AI
 // Gateway key stays on the server exactly as it does on Vercel. Nothing here
-// ships to production; Vercel serves index.html statically and api/halpish.js as
+// ships to production; Vercel serves index.html statically and api/helpish.js as
 // a function.
 
 import { createServer } from 'node:http';
@@ -84,19 +84,19 @@ async function serveStatic(req, res, pathname){
 
 await loadEnv();
 // Imported after the env is loaded so the handler sees the key.
-const { default: halpish } = await import('../api/halpish.js');
+const { default: helpish } = await import('../api/helpish.js');
 
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   try{
-    if(url.pathname === '/api/halpish') return await halpish(req, res);
-    if(url.pathname === '/api/halpish/health'){
+    if(url.pathname === '/api/helpish') return await helpish(req, res);
+    if(url.pathname === '/api/helpish/health'){
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
         ok: true,
-        model: process.env.HALPISH_MODEL || 'minimax-m3',
+        model: process.env.HELPISH_MODEL || 'minimax-m3',
         keyConfigured: !!process.env.OLLAMA_API_KEY || !!process.env.GROQ_API_KEY,   // boolean only, never the key
-        mock: !!process.env.HALPISH_MOCK,
+        mock: !!process.env.HELPISH_MOCK,
       }));
     }
     await serveStatic(req, res, url.pathname);
@@ -108,5 +108,5 @@ createServer(async (req, res) => {
 }).listen(PORT, () => {
   console.log(`Gbyrish dev server on http://localhost:${PORT}`);
   const brKey = process.env.BLOCKRUN_API_KEY;
-  console.log(`Halpish model: ${process.env.HALPISH_MODEL || 'minimax-m3'} | Ollama ${process.env.OLLAMA_API_KEY ? 'primary' : 'MISSING'} | Groq ${process.env.GROQ_API_KEY ? 'fallback' : 'off'}${process.env.HALPISH_MOCK ? ' | MOCK provider' : ''}`);
+  console.log(`Helpish model: ${process.env.HELPISH_MODEL || 'minimax-m3'} | Ollama ${process.env.OLLAMA_API_KEY ? 'primary' : 'MISSING'} | Groq ${process.env.GROQ_API_KEY ? 'fallback' : 'off'}${process.env.HELPISH_MOCK ? ' | MOCK provider' : ''}`);
 });

@@ -1,8 +1,8 @@
-// Halpish AI provider — Ollama Cloud (primary) with Groq fallback.
+// Helpish AI provider — Ollama Cloud only.
 //
 // This is the ONLY module that talks to a model provider. Swapping models means
-// changing HALPISH_MODEL; swapping providers means changing this file. Nothing
-// else in Halpish knows the gateway URL, the wire format, or the API key.
+// changing HELPISH_MODEL; swapping providers means changing this file. Nothing
+// else in Helpish knows the gateway URL, the wire format, or the API key.
 //
 // The key is read from the environment on the server. It is never sent to the
 // browser and never appears in a response body.
@@ -10,30 +10,22 @@
 const OLLAMA_URL = 'https://api.ollama.com/api/chat';
 
 export function modelName(){
-  return process.env.HALPISH_MODEL || 'minimax-m3';
+  return process.env.HELPISH_MODEL || 'minimax-m3';
 }
 
 function ollamaKey(){
   return process.env.OLLAMA_API_KEY;
 }
 
-// Convert OpenAI-style messages to Ollama-native format.
-// Ollama expects tool messages with role "tool" and content as a JSON array
-// of { name, content } objects, plus role "assistant" messages with tool_calls
-// should have tool_call_id matching the tool message.
+// Convert messages to Ollama-native format.
 function toOllamaMessages(messages){
   return messages.map(m => {
     if(m.role === 'tool'){
-      // Ollama wants tool results as a JSON array string in content
-      // with the tool name embedded, or as a structured format.
-      // The working format: role "tool", content = raw result string
       return { role: 'tool', content: String(m.content || '') };
     }
     if(m.tool_calls){
-      // assistant message with tool_calls
       const out = { role: 'assistant' };
       if(m.content) out.content = m.content;
-      // Ollama accepts OpenAI-style tool_calls
       out.tool_calls = m.tool_calls.map(tc => ({
         id: tc.id,
         type: 'function',
@@ -45,7 +37,7 @@ function toOllamaMessages(messages){
   });
 }
 
-// Normalize Ollama tool_call arguments — they may already be parsed or a string.
+// Normalize Ollama tool_call arguments.
 function normalizeToolCalls(tcs){
   if(!tcs) return [];
   return tcs.map(tc => {
@@ -69,15 +61,9 @@ async function ollamaCall({ messages, tools, stream, maxTokens, temperature, tim
   const body = {
     model: modelName(),
     messages: toOllamaMessages(messages),
-    options: {
-      num_predict: maxTokens,
-      temperature,
-    },
+    options: { num_predict: maxTokens, temperature },
   };
-  if(tools && tools.length){
-    body.tools = tools;
-  }
-  // Ollama doesn't support stream with tools — always do non-streaming
+  if(tools && tools.length) body.tools = tools;
   if(tools && tools.length) body.stream = false;
   else body.stream = !!stream;
 
@@ -97,8 +83,8 @@ async function ollamaCall({ messages, tools, stream, maxTokens, temperature, tim
     throw new ProviderError(`Ollama ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
   }
 
+  // Non-streaming (tool calls or caller didn't request stream)
   if(!stream || (tools && tools.length)){
-    // Non-streaming: return parsed JSON in OpenAI-compatible shape
     const data = await res.json();
     const msg = data.message || {};
     return {
@@ -114,49 +100,11 @@ async function ollamaCall({ messages, tools, stream, maxTokens, temperature, tim
     };
   }
 
-  // Streaming: return raw response and wrap in OpenAI-compatible SSE
+  // Streaming: return raw response for Ollama native format parsing
   return { stream: true, rawRes: res };
 }
 
-// Groq fallback (fast, free tier).
-function groqKey(){
-  return process.env.GROQ_API_KEY;
-}
-
-async function groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs }){
-  const key = groqKey();
-  if(!key) return null;
-
-  const body = {
-    model: process.env.HALPISH_MODEL_GROQ || 'qwen/qwen3.6-27b',
-    messages,
-    max_tokens: maxTokens,
-    temperature,
-    stream,
-  };
-  if(tools && tools.length){
-    body.tools = tools;
-    body.tool_choice = 'auto';
-  }
-
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
-  });
-
-  if(!res.ok){
-    const text = await res.text().catch(() => '');
-    throw new ProviderError(`Groq ${res.status}: ${text.slice(0, 300)}`, { status: res.status, kind: 'billing' });
-  }
-  return stream ? res : await res.json();
-}
-
-// Every failure Halpish can hit is reduced to one of these kinds.
+// Every failure Helpish can hit is reduced to one of these kinds.
 export class ProviderError extends Error {
   constructor(message, { status = 0, kind = 'unknown', retryable = false } = {}){
     super(message);
@@ -186,53 +134,34 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
  * One chat completion call.
  *
  * Returns a wrapper object when `stream` is true (caller uses .readStream()),
- * or the parsed JSON body when false. Retries rate limits and 5xx a couple
- * of times with backoff; everything else fails fast as a ProviderError.
+ * or the parsed JSON body when false.
  */
 export async function chat({ messages, tools, stream = false, maxTokens = 1024, temperature = 0.3, timeoutMs = 45000, attempts = 3 }){
-  // Test hooks.
-  if(process.env.HALPISH_FORCE_ERROR){
-    const kind = process.env.HALPISH_FORCE_ERROR;
+  if(process.env.HELPISH_FORCE_ERROR){
+    const kind = process.env.HELPISH_FORCE_ERROR;
     const statuses = { rate_limit: 429, billing: 402, auth: 401, server: 503, bad_request: 400 };
     throw new ProviderError(`Forced ${kind} for testing.`, { status: statuses[kind] || 0, kind, retryable: false });
   }
-  if(process.env.HALPISH_MOCK){
+  if(process.env.HELPISH_MOCK){
     const { mockChat } = await import('./mock.js');
     return mockChat({ messages, tools, stream });
   }
 
-  let lastErr = null;
-
-  // Try Ollama first.
-  try{
-    const orRes = await ollamaCall({ messages, tools, stream, maxTokens, temperature, timeoutMs });
-    if(orRes) return orRes;
-  }catch(e){
-    lastErr = e;
-    if(!(e instanceof ProviderError)) console.error('Ollama error:', e.message);
-  }
-
-  // Ollama failed — try Groq fallback.
-  try{
-    const groqRes = await groqFallback({ messages, tools, stream, maxTokens, temperature, timeoutMs });
-    if(groqRes) return groqRes;
-  }catch(e){
-    lastErr = e;
-    if(!(e instanceof ProviderError)) console.error('Groq error:', e.message);
-  }
-
-  throw lastErr || new ProviderError('No AI provider available. Set OLLAMA_API_KEY or GROQ_API_KEY.', { kind: 'config' });
+  const res = await ollamaCall({ messages, tools, stream, maxTokens, temperature, timeoutMs });
+  if(!res) throw new ProviderError('No AI provider available. Set OLLAMA_API_KEY.', { kind: 'config' });
+  return res;
 }
 
 /**
  * Parse a provider response into { text, toolCalls, finish }.
  *
- * Handles both OpenAI-style SSE streams and Ollama's native format.
+ * Handles both Ollama's native newline-delimited JSON streaming and
+ * non-streaming JSON responses.
  */
 export async function readStream(res, { onText } = {}){
   if(!res) return { text: '', toolCalls: [], finish: null };
 
-  // Ollama streaming: newline-delimited JSON (not SSE)
+  // Ollama streaming: newline-delimited JSON
   if(res.stream && res.rawRes){
     const reader = res.rawRes.body.getReader();
     const decoder = new TextDecoder();
@@ -245,7 +174,6 @@ export async function readStream(res, { onText } = {}){
       const { value, done } = await reader.read();
       if(done) break;
       buffer += decoder.decode(value, { stream: true });
-
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
@@ -268,82 +196,20 @@ export async function readStream(res, { onText } = {}){
             slot.function.arguments = typeof tc.function.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function.arguments);
           }
         }
-        if(json.done){
-          finish = json.done_reason || 'stop';
-          // Flush any remaining thinking content
-          if(msg.thinking && onText) await onText('');
-        }
+        if(json.done) finish = json.done_reason || 'stop';
       }
     }
     return { text, toolCalls: tcs.filter(Boolean), finish };
   }
 
-  // OpenAI-style SSE stream (Groq, OpenRouter, etc.)
-  if(res.body){
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let text = '';
-    let finish = null;
-    const tcs = [];
-
-    async function eatLine(line){
-      if(!line.startsWith('data:')) return;
-      let payload = line.slice(5).trim();
-      while(payload.startsWith('data:')) payload = payload.slice(5).trim();
-      if(payload === '[DONE]') return;
-
-      let json;
-      try { json = JSON.parse(payload); } catch { return; }
-
-      const choice = json.choices?.[0];
-      if(!choice) return;
-
-      const delta = choice.delta || {};
-      if(delta.content){
-        text += delta.content;
-        if(onText) await onText(delta.content);
-      }
-      for(const tc of (choice.tool_calls || delta.tool_calls || [])){
-        const i = tc.index ?? 0;
-        const slot = tcs[i] || (tcs[i] = { id: '', type: 'function', function: { name: '', arguments: '' } });
-        if(tc.id) slot.id = tc.id;
-        if(tc.function?.name) slot.function.name = tc.function.name;
-        if(tc.function?.arguments !== undefined) slot.function.arguments = tc.function.arguments;
-      }
-      if(choice.finish_reason && !finish) finish = choice.finish_reason;
-    }
-
-    while(true){
-      const { value, done } = await reader.read();
-      if(done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for(const line of lines){
-        const trimmed = line.trim();
-        if(!trimmed) continue;
-        await eatLine(trimmed);
-      }
-    }
-    return { text, toolCalls: tcs.filter(Boolean), finish };
-  }
-
-  // Non-streaming JSON response (from chat() returning parsed JSON)
+  // Non-streaming JSON response
   const data = res;
   if(data?.choices){
     const msg = data.choices[0]?.message || {};
     const tcs = normalizeToolCalls(msg.tool_calls);
     const text = msg.content || '';
-    // Fire onText for non-streaming so callers that track anyText still work
     if(text && onText) await onText(text);
-    return {
-      text,
-      toolCalls: tcs,
-      finish: data.choices[0]?.finish_reason || 'stop',
-    };
+    return { text, toolCalls: tcs, finish: data.choices[0]?.finish_reason || 'stop' };
   }
   return { text: '', toolCalls: [], finish: null };
 }

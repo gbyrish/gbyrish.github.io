@@ -1,7 +1,7 @@
-// Halpish store data access.
+// Helpish store data access.
 //
 // Reads the REAL Gbyrish store through the Firestore REST API — the same data
-// the site itself renders — so Halpish can never invent products, prices, stock
+// the site itself renders — so Helpish can never invent products, prices, stock
 // or sale terms. There is no second database and no duplicated product list.
 //
 // Reads are unauthenticated for public collections (products, settings), exactly
@@ -12,7 +12,7 @@ export const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'gybrish-store';
 export const WEB_KEY = () => process.env.FIREBASE_API_KEY || 'AIzaSyAAkIcNkUzzvcbUwXirBxsFPhtZcNqOsV0';
 export const FS_ROOT = () => `https://firestore.googleapis.com/v1/projects/${PROJECT()}/databases/(default)/documents`;
 
-// Mirrors ADMIN_EMAILS in index.html. Overridable with HALPISH_ADMIN_EMAILS.
+// Mirrors ADMIN_EMAILS in index.html. Overridable with HELPISH_ADMIN_EMAILS.
 const BUILTIN_ADMINS = ['ahmadasifkhan2023@gmail.com', 'gybrish@gmail.com', 'gbyrish@gmail.com'];
 
 // Mirrors State.coupons in index.html, which is a client-side constant with no
@@ -209,7 +209,7 @@ export function effectivePrice(p, settings){
  * Product copy as the model should see it.
  *
  * Store descriptions contain emoji and decorative bullets. The site UI is
- * emoji-free, and Halpish quotes these descriptions back to customers, so they
+ * emoji-free, and Helpish quotes these descriptions back to customers, so they
  * are stripped here rather than hoping the model drops them.
  */
 export function cleanCopy(text, limit = 400){
@@ -279,7 +279,7 @@ export function shippingInformation(settings){
     taxPercent: Number(settings.taxRate || 0),
     paymentMethods: ['Cash on Delivery', 'Bank Transfer'],
     // Deliberately not fabricated: the store does not publish delivery-day
-    // estimates anywhere in its data, so Halpish must not guess them.
+    // estimates anywhere in its data, so Helpish must not guess them.
     deliveryTimeframe: null,
     deliveryNote: 'Specific delivery timeframes are not published in the store settings. Ask the customer to confirm timing over WhatsApp.',
     whatsapp: '+92 336 3611223',
@@ -314,7 +314,7 @@ export async function verifyIdToken(idToken){
 
 export async function isAdmin(user, idToken){
   if(!user?.email) return false;
-  const env = (process.env.HALPISH_ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const env = (process.env.HELPISH_ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const list = env.length ? env : BUILTIN_ADMINS;
   if(list.includes(user.email)) return true;
   // Dynamic admins live in the `admins` collection, doc id = lowercased email.
