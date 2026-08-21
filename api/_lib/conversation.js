@@ -22,10 +22,21 @@ const clip = (s) => {
 /** Keep only well-formed customer/assistant turns, in order. */
 export function sanitizeHistory(history){
   if(!Array.isArray(history)) return [];
-  return history
-    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
-    .map(m => ({ role: m.role, content: clip(m.content) }))
-    .slice(-60);                       // hard ceiling on what we'll even consider
+  const out = [];
+  for(const m of history){
+    if(!m || (m.role !== 'user' && m.role !== 'assistant')) continue;
+    // Image-only user messages: keep them (no text content).
+    if(m.images && Array.isArray(m.images) && m.images.length){
+      out.push({
+        role: m.role,
+        content: typeof m.content === 'string' ? clip(m.content) : (m.content || ''),
+        images: m.images.map(img => typeof img === 'string' ? img.slice(-200_000) : img),
+      });
+    } else if(typeof m.content === 'string' && m.content.trim()){
+      out.push({ role: m.role, content: clip(m.content) });
+    }
+  }
+  return out.slice(-60);
 }
 
 /**
@@ -86,6 +97,12 @@ export async function buildMessages({ system, history, priorSummary }){
 
   const messages = [{ role: 'system', content: system }];
   if(summary) messages.push({ role: 'system', content: `Context from earlier in this conversation:\n${summary}` });
-  messages.push(...recent);
+  for(const m of recent){
+    if(m.images && Array.isArray(m.images) && m.images.length){
+      messages.push({ role: m.role, content: m.content || '', images: m.images });
+    } else {
+      messages.push({ role: m.role, content: m.content });
+    }
+  }
   return { messages, summary };
 }

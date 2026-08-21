@@ -2869,8 +2869,13 @@ function pageFAQ(){
 /* ---------------- Admin Pages ---------------- */
 function adminNav(active){
   const items = [['#admin','Dashboard'],['#admin/sale','Sale Event'],['#admin/discounts','Spend Discount'],['#admin/product','Add Product'],['#admin/inventory','Inventory'],['#admin/orders','Orders'],['#admin/agent','AI Agent'],['#admin/trash','Recycle Bin'],['#admin/settings','Site Settings']];
-  return `<div class="flex gap-2 overflow-x-auto hide-scrollbar mb-8">
-    ${items.map(([h,l])=>`<a href="${h}" class="shrink-0 px-5 py-2.5 rounded-full text-sm font-medium ${active===h? 'bg-primary text-white':'bg-cream2 text-ink'}">${l}</a>`).join('')}
+  const id = 'admin-nav-' + Math.random().toString(36).slice(2, 8);
+  return `<div class="relative mb-8">
+    <button type="button" onclick="document.getElementById('${id}').scrollBy({left:-200,behavior:'smooth'})" class="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white shadow-md rounded-full items-center justify-center text-gray-500 hover:text-primary">&lsaquo;</button>
+    <div id="${id}" class="flex gap-2 overflow-x-auto hide-scrollbar scroll-smooth px-1">
+      ${items.map(([h,l])=>`<a href="${h}" class="shrink-0 px-5 py-2.5 rounded-full text-sm font-medium ${active===h? 'bg-primary text-white':'bg-cream2 text-ink'}">${l}</a>`).join('')}
+    </div>
+    <button type="button" onclick="document.getElementById('${id}').scrollBy({left:200,behavior:'smooth'})" class="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white shadow-md rounded-full items-center justify-center text-gray-500 hover:text-primary">&rsaquo;</button>
   </div>`;
 }
 function pageAdminSale(){
@@ -3757,8 +3762,19 @@ function pageAdminAgent(){
       <input id="admin-agent-input" type="text" placeholder="e.g. show today's orders, or update order GB-12345 to shipped"
         class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
         onkeydown="if(event.key==='Enter')window.adminAgentSend()">
+      <input type="file" id="admin-agent-img-input" accept="image/jpeg,image/png,image/webp" hidden>
+      <button type="button" id="admin-agent-img-btn" onclick="document.getElementById('admin-agent-img-input').click()"
+        class="shrink-0 w-11 h-11 rounded-xl border border-gray-200 bg-white hover:bg-cream2 transition flex items-center justify-center text-gray-400 hover:text-gray-600"
+        title="Attach an image">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      </button>
       <button type="button" onclick="window.adminAgentSend()" class="btn-primary px-6 rounded-xl text-sm font-medium">Send</button>
     </form>
+    <div id="admin-agent-img-preview" class="hidden mt-2 flex items-center gap-2">
+      <img id="admin-agent-img-thumb" class="h-10 w-10 object-cover rounded-lg border border-gray-200">
+      <button type="button" onclick="window.adminAgentClearImage()" class="text-xs text-red-500 hover:text-red-700">Remove</button>
+    </div>
+    <script>setTimeout(function(){ if(typeof window.initAdminAgentImage==='function') window.initAdminAgentImage(); }, 50);</script>
   </div>`;
 }
 function settingsPreviewHtml(s){
@@ -3835,16 +3851,18 @@ window.adminAgentMessages = [];
 window.adminAgentSummary = '';
 window.adminAgentBusy = false;
 window.adminAgentPendingConfirm = null;
+window.adminAgentPendingImage = null;
 
 window.adminAgentSend = async function(){
   if(window.adminAgentBusy) return;
   const input = document.getElementById('admin-agent-input');
   const text = input?.value?.trim();
-  if(!text) return;
+  if(!text && !window.adminAgentPendingImage) return;
   input.value = '';
 
   window.adminAgentBusy = true;
-  window.adminAgentMessages.push({ role: 'user', content: text });
+  const displayText = text || (window.adminAgentPendingImage ? '[image attached]' : '');
+  window.adminAgentMessages.push({ role: 'user', content: displayText });
   window.renderAdminAgentLog();
 
   const history = window.adminAgentMessages
@@ -3856,17 +3874,28 @@ window.adminAgentSend = async function(){
   if(confirmBox) confirmBox.classList.add('hidden');
   window.adminAgentPendingConfirm = null;
 
+  let images = [];
+  if(window.adminAgentPendingImage){
+    images = [window.adminAgentPendingImage];
+    window.adminAgentPendingImage = null;
+    const preview = document.getElementById('admin-agent-img-preview');
+    if(preview) preview.classList.add('hidden');
+  }
+
   try{
+    const bodyPayload = {
+      mode: 'admin_chat',
+      message: text,
+      history,
+      summary: window.adminAgentSummary,
+      idToken: await State.user?.getIdToken?.().catch(() => '') || '',
+    };
+    if(images.length) bodyPayload.images = images;
+
     const res = await fetch('/api/helpish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mode: 'admin_chat',
-        message: text,
-        history,
-        summary: window.adminAgentSummary,
-        idToken: await State.user?.getIdToken?.().catch(() => '') || '',
-      }),
+      body: JSON.stringify(bodyPayload),
     });
 
     if(!res.ok || !res.body) throw new Error('Server error: ' + res.status);
@@ -4026,6 +4055,38 @@ window.adminAgentDeny = function(){
   window.adminAgentPendingConfirm = null;
   window.adminAgentMessages.push({ role: 'user', content: 'Cancelled.' });
   window.renderAdminAgentLog();
+};
+
+window.adminAgentClearImage = function(){
+  const input = document.getElementById('admin-agent-img-input');
+  const preview = document.getElementById('admin-agent-img-preview');
+  if(input) input.value = '';
+  if(preview) preview.classList.add('hidden');
+  window.adminAgentPendingImage = null;
+};
+
+// Admin agent image upload handler (initialized when admin agent panel renders)
+window.initAdminAgentImage = function(){
+  const input = document.getElementById('admin-agent-img-input');
+  if(!input || input._adminAgentBound) return;
+  input._adminAgentBound = true;
+  input.addEventListener('change', async function(){
+    const file = this.files?.[0];
+    if(!file) return;
+    try{
+      const result = await resizeImage(file, 1024);
+      window.adminAgentPendingImage = 'data:' + result.type + ';base64,' + result.data;
+      const thumb = document.getElementById('admin-agent-img-thumb');
+      const preview = document.getElementById('admin-agent-img-preview');
+      if(thumb && result.data){
+        thumb.src = 'data:' + result.type + ';base64,' + result.data;
+        if(preview) preview.classList.remove('hidden');
+      }
+    }catch{
+      window.adminAgentMessages.push({ role: 'note', content: 'Could not read that image. Try a different file.' });
+      window.renderAdminAgentLog();
+    }
+  });
 };
 
 window.renderAdminAgentLog = function(){

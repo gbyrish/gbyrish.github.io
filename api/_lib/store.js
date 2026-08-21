@@ -447,6 +447,27 @@ export async function updateProduct(productId, fields, idToken){
 }
 
 /**
+ * Create a new product in the store.
+ */
+export async function createProduct(productId, fields, idToken){
+  const pid = String(productId || '').trim();
+  if(!pid) throw new StoreError('productId is required', { kind: 'bad_input' });
+  if(!fields || typeof fields !== 'object') throw new StoreError('fields object is required', { kind: 'bad_input' });
+  const safe = { ...fields };
+  const allowed = ['name', 'price', 'description', 'category', 'badge', 'originalPrice',
+                   'discountPercent', 'customizable', 'includedItems', 'image', 'images',
+                   'features', 'specifications', 'careInstructions', 'shippingInfo', 'stock'];
+  const filtered = {};
+  for(const k of allowed){ if(k in safe) filtered[k] = safe[k]; }
+  if(!filtered.name) throw new StoreError('Product name is required', { kind: 'bad_input' });
+  if(!filtered.price && filtered.price !== 0) throw new StoreError('Product price is required', { kind: 'bad_input' });
+  filtered.createdAt = new Date().toISOString();
+  filtered.updatedAt = new Date().toISOString();
+  const result = await fsSet(`products/${encodeURIComponent(pid)}`, filtered, { idToken });
+  return { productId: pid, created: Object.keys(filtered) };
+}
+
+/**
  * Create a new discount/promo document.
  */
 export async function createDiscount(data, idToken){

@@ -7,7 +7,7 @@
 
 import {
   getProducts, getSettings, getOrderForUser,
-  updateOrderStatus, cancelOrder, updateInventory, updateProduct,
+  updateOrderStatus, cancelOrder, updateInventory, updateProduct, createProduct,
   createDiscount, updateDiscount, deleteDiscount, updateStoreSetting,
   StoreError, FS_ROOT, WEB_KEY,
 } from './store.js';
@@ -175,6 +175,29 @@ export const ADMIN_TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'create_product',
+      description: 'Create a new product listing. You can create products from scratch or from a description. Requires admin confirmation. The admin can attach a photo after the product is created.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Product name.' },
+          price: { type: 'integer', description: 'Price in PKR.' },
+          description: { type: 'string', description: 'Product description text.' },
+          category: { type: 'string', description: 'Category: Stainless Steel Jewelry, Bouquets (Customizable), Customized Baskets, Wallet, Ring, or Deals.' },
+          stock: { type: 'integer', description: 'Initial stock quantity. Default 10.' },
+          customizable: { type: 'boolean', description: 'Allow customization note. Default false.' },
+          badge: { type: 'string', description: 'Badge text (only for Deals category).' },
+          originalPrice: { type: 'integer', description: 'Original price for deals (only for Deals category).' },
+          discountPercent: { type: 'integer', description: 'Item-level discount percentage. Default 0.' },
+          confirmToken: { type: 'string', description: 'Confirmation token from the admin. Only include after the admin explicitly confirms.' },
+        },
+        required: ['name', 'price', 'category'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'update_product',
       description: 'Update product details (name, price, description, etc.). Requires admin confirmation.',
       parameters: {
@@ -268,7 +291,7 @@ const READ_TOOLS = new Set([
   'search_orders', 'lookup_order', 'get_today_orders', 'get_sales_summary', 'get_low_stock_products',
 ]);
 export const WRITE_TOOLS = new Set([
-  'update_order_status', 'cancel_order', 'update_inventory', 'update_product',
+  'update_order_status', 'cancel_order', 'update_inventory', 'create_product', 'update_product',
   'create_discount', 'update_discount', 'delete_discount', 'update_store_setting',
 ]);
 export const ADMIN_TOOLS = new Set([...READ_TOOLS, ...WRITE_TOOLS]);
@@ -317,6 +340,7 @@ export async function runAdminTool(name, rawArgs, ctx){
       case 'update_order_status': return await doUpdateOrderStatus(args, ctx);
       case 'cancel_order': return await doCancelOrder(args, ctx);
       case 'update_inventory': return await doUpdateInventory(args, ctx);
+      case 'create_product': return await doCreateProduct(args, ctx);
       case 'update_product': return await doUpdateProduct(args, ctx);
       case 'create_discount': return await doCreateDiscount(args, ctx);
       case 'update_discount': return await doUpdateDiscount(args, ctx);
@@ -334,6 +358,7 @@ function summarizeWrite(name, args){
     case 'update_order_status': return `Update order ${args.orderId} status to "${args.status}"${args.note ? ' with note: "'+args.note+'"' : ''}`;
     case 'cancel_order': return `Cancel order ${args.orderId}${args.reason ? ' (reason: "'+args.reason+'")' : ''}`;
     case 'update_inventory': return `Set stock of product ${args.productId} to ${args.stock}`;
+    case 'create_product': return `Create new product "${args.name}" (${args.category}, Rs. ${args.price}${args.stock ? `, stock: ${args.stock}` : ''})`;
     case 'update_product': return `Update product ${args.productId}: ${Object.entries(args).filter(([k])=>k!=='productId'&&k!=='confirmToken').map(([k,v])=>`${k}=${v}`).join(', ') || 'no changes specified'}`;
     case 'create_discount': return `Create discount code "${args.code}" (${args.type} ${args.value}${args.type==='percent'?'%':' PKR'} off)`;
     case 'update_discount': return `Update discount ${args.discountId}: ${Object.entries(args).filter(([k])=>k!=='discountId'&&k!=='confirmToken').map(([k,v])=>`${k}=${v}`).join(', ')}`;
@@ -490,6 +515,25 @@ async function doUpdateInventory(args, ctx){
   const pid = await resolveProductId(args.productId, ctx.idToken);
   const result = await updateInventory(pid, args.stock, ctx.idToken);
   return { success: true, ...result };
+}
+
+async function doCreateProduct(args, ctx){
+  const { name, price, description, category, stock, customizable, badge, originalPrice, discountPercent } = args;
+  if(!name || !price || !category) throw new StoreError('name, price, and category are required to create a product.');
+  const pid = `product_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}`;
+  const fields = {
+    name: String(name),
+    price: Number(price),
+    category: String(category),
+    description: description ? String(description) : '',
+    stock: stock !== undefined ? Number(stock) : 10,
+    customizable: customizable ? true : false,
+  };
+  if(badge) fields.badge = String(badge);
+  if(originalPrice) fields.originalPrice = Number(originalPrice);
+  if(discountPercent) fields.discountPercent = Number(discountPercent);
+  const result = await createProduct(pid, fields, ctx.idToken);
+  return { success: true, productId: pid, ...result };
 }
 
 async function doUpdateProduct(args, ctx){

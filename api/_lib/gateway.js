@@ -33,6 +33,23 @@ function toOllamaMessages(messages){
       }));
       return out;
     }
+    // Handle content arrays with images (OpenAI-style multimodal).
+    if(Array.isArray(m.content)){
+      let text = '';
+      const images = [];
+      for(const part of m.content){
+        if(part.type === 'text') text += part.text;
+        else if(part.type === 'image_url' || part.type === 'image'){
+          const url = part.image_url?.url || part.url || '';
+          // Strip data URI prefix — Ollama wants raw base64.
+          const match = url.match(/^data:[^;]+;base64,(.+)$/);
+          if(match) images.push(match[1]);
+        }
+      }
+      const out = { role: m.role, content: text || undefined };
+      if(images.length) out.images = images;
+      return out;
+    }
     return { role: m.role, content: m.content };
   });
 }

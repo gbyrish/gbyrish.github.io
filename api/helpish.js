@@ -160,6 +160,7 @@ const ADMIN_TOOL_LABELS = {
   update_order_status: 'Updating order status',
   cancel_order: 'Cancelling order',
   update_inventory: 'Updating inventory',
+  create_product: 'Creating product',
   update_product: 'Updating product',
   create_discount: 'Creating discount',
   update_discount: 'Updating discount',
@@ -262,6 +263,7 @@ function summarizeWrite(name, args){
     case 'update_order_status': return `Update order ${args.orderId} status to "${args.status}"${args.note ? ' with note: "'+args.note+'"' : ''}`;
     case 'cancel_order': return `Cancel order ${args.orderId}${args.reason ? ' (reason: "'+args.reason+'")' : ''}`;
     case 'update_inventory': return `Set stock of product ${args.productId} to ${args.stock}`;
+    case 'create_product': return `Create new product "${args.name}" (${args.category}, Rs. ${args.price}${args.stock ? `, stock: ${args.stock}` : ''})`;
     case 'update_product': return `Update product ${args.productId}: ${Object.entries(args).filter(([k])=>k!=='productId'&&k!=='confirmToken').map(([k,v])=>`${k}=${v}`).join(', ') || 'no changes'}`;
     case 'create_discount': return `Create discount code "${args.code}" (${args.type} ${args.value}${args.type==='percent'?'%':' PKR'} off)`;
     case 'update_discount': return `Update discount ${args.discountId}: ${Object.entries(args).filter(([k])=>k!=='discountId'&&k!=='confirmToken').map(([k,v])=>`${k}=${v}`).join(', ')}`;
@@ -345,7 +347,10 @@ export default async function handler(req, res){
     }
 
     const ctx = { user, idToken, isAdmin: true };
-    const history = [...sanitizeHistory(body.history), { role: 'user', content: message }];
+    let history = [...sanitizeHistory(body.history), { role: 'user', content: message }];
+    if(body.images && Array.isArray(body.images) && body.images.length){
+      history[history.length - 1] = { role: 'user', content: message || '', images: body.images };
+    }
 
     let built;
     try{
@@ -387,7 +392,10 @@ export default async function handler(req, res){
   }
 
   const admin = user ? await isAdmin(user, idToken) : false;
-  const history = [...sanitizeHistory(body.history), { role: 'user', content: message }];
+  let history = [...sanitizeHistory(body.history), { role: 'user', content: message }];
+  if(body.images && Array.isArray(body.images) && body.images.length){
+    history[history.length - 1] = { role: 'user', content: message || '', images: body.images };
+  }
 
   let built;
   try{
