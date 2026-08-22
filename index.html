@@ -51,7 +51,7 @@ tailwind.config = {
   ::-webkit-scrollbar-thumb { background:#D8C9B5; border-radius:10px; }
   ::-webkit-scrollbar-track { background:#F5EDE4; }
   .page { display:none; }
-  .page.active { display:block; animation:fadeIn .35s ease; }
+  .page.active { display:block; }
   @keyframes fadeIn { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
   .btn-primary { background:#8B6F4E; color:#fff; transition:.25s; }
   .btn-primary:hover { background:#6B5637; }
@@ -150,26 +150,32 @@ tailwind.config = {
      The nav had 11+ links in a justify-between row with no overflow handling, so at
      narrow-desktop widths flexbox squeezed the logo and icons. Now the links live in
      their own horizontally scrollable track and the logo/icons never shrink. */
-  .nav-strip { position:relative; flex:1 1 auto; min-width:0; }
-  .nav-strip > nav { display:flex; align-items:center; gap:1.6rem; overflow-x:auto; overflow-y:hidden;
-    padding:.85rem .3rem; scroll-behavior:smooth; scrollbar-width:none; -ms-overflow-style:none;
+  .nav-strip { position:relative; flex:1 1 auto; min-width:0; align-items:center; }
+  .nav-strip > nav { flex:1 1 auto; min-width:0;
+    display:flex; align-items:center; gap:1.6rem; overflow-x:auto; overflow-y:hidden;
+    padding:.85rem .3rem; scrollbar-width:none; -ms-overflow-style:none;
     overscroll-behavior-x:contain; }
   .nav-strip > nav::-webkit-scrollbar { display:none; }
   .nav-strip > nav > a { flex:0 0 auto; white-space:nowrap; }
   .nav-strip::before, .nav-strip::after { content:''; position:absolute; top:0; bottom:0; width:36px;
-    pointer-events:none; z-index:2; opacity:0; transition:opacity .25s ease; }
-  .nav-strip::before { left:0;  background:linear-gradient(90deg,#FDF8F3 25%,rgba(253,248,243,0)); }
-  .nav-strip::after  { right:0; background:linear-gradient(270deg,#FDF8F3 25%,rgba(253,248,243,0)); }
+    pointer-events:none; z-index:2; opacity:0; }
+  .nav-strip::before { left:24px;  background:linear-gradient(90deg,#FDF8F3 25%,rgba(253,248,243,0)); }
+  .nav-strip::after  { right:24px; background:linear-gradient(270deg,#FDF8F3 25%,rgba(253,248,243,0)); }
   .nav-strip.can-l::before { opacity:1; }
   .nav-strip.can-r::after  { opacity:1; }
   .dark .nav-strip::before { background:linear-gradient(90deg,#0F0F0F 25%,rgba(15,15,15,0)); }
   .dark .nav-strip::after  { background:linear-gradient(270deg,#0F0F0F 25%,rgba(15,15,15,0)); }
-  .nav-arrow { position:absolute; top:50%; transform:translateY(-50%); z-index:3; width:24px; height:24px;
-    border-radius:9999px; background:rgba(255,255,255,.9); box-shadow:0 2px 8px rgba(139,111,78,.25);
-    display:none; align-items:center; justify-content:center; font-size:14px; line-height:1; color:#8B6F4E; }
-  .nav-strip.can-l .nav-arrow.left, .nav-strip.can-r .nav-arrow.right { display:flex; }
-  .nav-arrow.left { left:-2px; } .nav-arrow.right { right:-2px; }
-  .dark .nav-arrow { background:rgba(30,30,30,.92); color:#E8A0BF; }
+  /* The arrows are flex siblings of the track, not overlays, so they can never sit
+     on top of a link. visibility (not display) keeps their 24px reserved in both
+     states, so revealing one doesn't shove the links sideways. */
+  .nav-arrow { flex:0 0 auto; z-index:4; width:24px; height:24px;
+    border-radius:9999px; background:rgba(255,255,255,.95); box-shadow:0 2px 8px rgba(139,111,78,.25);
+    display:flex; visibility:hidden; align-items:center; justify-content:center; font-size:14px;
+    line-height:1; color:#8B6F4E; cursor:pointer; padding:0; border:0;
+    /* Overrides the global button transition — these appear and scroll instantly. */
+    transition:none; }
+  .nav-strip.can-l .nav-arrow.left, .nav-strip.can-r .nav-arrow.right { visibility:visible; }
+  .dark .nav-arrow { background:rgba(30,30,30,.95); color:#E8A0BF; }
 
   /* ===== Motion ===== */
   @keyframes riseIn   { from{opacity:0; transform:translateY(18px)} to{opacity:1; transform:translateY(0)} }
@@ -177,14 +183,15 @@ tailwind.config = {
   @keyframes popIn    { 0%{transform:scale(0)} 70%{transform:scale(1.28)} 100%{transform:scale(1)} }
   @keyframes floaty   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
 
-  /* Route entrance — applied only when the hash route actually changes, so ordinary
-     re-renders (add to cart, auth resolving) don't replay the whole page animation. */
-  /* Two classes deep so it beats `.page.active { animation: fadeIn }` above. */
-  .page.page-enter { animation: riseIn .42s cubic-bezier(.22,.9,.3,1) both; }
+  /* Route entrance and scroll-reveal are deliberately OFF. Every hash change
+     rebuilds #app-root, so replaying a rise-in on each navigation made the whole
+     page flash and re-stagger on every click — it read as a bug, not polish.
+     Content is painted in its final state. The keyframes stay for the badge pop
+     and the floating buttons, which are one-off and self-contained. */
+  .page.page-enter { animation:none; }
 
-  /* Scroll reveal — sections and cards rise in as they enter the viewport. */
-  .reveal { opacity:0; transform:translateY(26px);
-    transition:opacity .6s cubic-bezier(.22,.9,.3,1), transform .6s cubic-bezier(.22,.9,.3,1); }
+  /* Kept as no-ops so any element that still gets .reveal is simply visible. */
+  .reveal { opacity:1; transform:none; }
   .reveal.in { opacity:1; transform:none; }
 
   /* Tactile feedback */
@@ -1426,7 +1433,7 @@ function Header(){
           </button>
           <a href="#home" class="flex items-center leading-none shrink-0"><img src="${siteLogo()}" alt="gbyrish" class="h-10 md:h-14 w-auto max-w-none object-contain"></a>
         </div>
-        <div class="nav-strip hidden md:block" id="nav-strip">
+        <div class="nav-strip hidden md:flex" id="nav-strip">
           <button type="button" class="nav-arrow left" onclick="window.navStripNudge(-1)" aria-label="Scroll links left">&#8249;</button>
           <nav id="nav-track" onscroll="window.navStripSync()" class="text-sm font-medium tracking-wide uppercase">
             <a href="#home" class="navlink hover:text-primary">Home</a>
@@ -4699,44 +4706,15 @@ function render(){
 }
 // Countdown timer tick — updates sale countdowns every second
 setInterval(saleTick, 1000);
-/* ---------------- Motion: route entrance, scroll reveal, nav slide bar ---------------- */
+/* ---------------- Motion: nav strip ---------------- */
 let _lastRoute = null;
 
-const _reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-// Scroll reveal runs off timers + scroll events, deliberately NOT IntersectionObserver:
-// an observer never fires in a non-compositing context (hidden tab, embedded preview),
-// which would strand every .reveal element at opacity 0 — i.e. an invisible page.
-// Timers and scroll events always run, so content can never get stuck hidden.
-let _revealPending = [];
-let _revealTick = false;
 const _badgeCounts = {};
 
-function _revealScan(){
-  _revealTick = false;
-  if(!_revealPending.length) return;
-  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
-  if(!vh){ _revealPending.forEach(el=> el.classList.add('in')); _revealPending = []; return; }
-  const rest = [];
-  for(const el of _revealPending){
-    if(!el.isConnected) continue;                    // element was replaced by a re-render
-    const r = el.getBoundingClientRect();
-    if(r.bottom > 0 && r.top < vh * 0.94) el.classList.add('in');
-    else rest.push(el);
-  }
-  _revealPending = rest;
-}
-
-function _queueRevealScan(){
-  if(_revealTick) return;
-  _revealTick = true;
-  setTimeout(_revealScan, 50);
-}
-
-window.addEventListener('scroll', _queueRevealScan, { passive:true });
-window.addEventListener('resize', _queueRevealScan);
-
 // Show/hide the nav strip's edge fades + arrows based on how far it's scrolled.
+// Called on scroll, on resize, and after every render. Measuring right after
+// innerHTML is set can read a stale zero width, so afterRender also re-runs this
+// on the next frame and once web fonts settle.
 window.navStripSync = function(){
   const strip = document.getElementById('nav-strip');
   const track = document.getElementById('nav-track');
@@ -4746,15 +4724,24 @@ window.navStripSync = function(){
   strip.classList.toggle('can-r', max > 4 && track.scrollLeft < max - 4);
 };
 
-// Arrow buttons nudge the strip by ~70% of its visible width.
+// Arrow buttons nudge the strip by ~70% of its visible width. Instant, no glide.
 window.navStripNudge = function(dir){
   const track = document.getElementById('nav-track');
   if(!track) return;
-  track.scrollBy({ left: dir * Math.max(160, track.clientWidth * 0.7), behavior: 'smooth' });
+  const max = track.scrollWidth - track.clientWidth;
+  const step = Math.max(160, track.clientWidth * 0.7);
+  track.scrollLeft = Math.max(0, Math.min(max, track.scrollLeft + dir * step));
+  window.navStripSync();
 };
 
 function afterRender(routeChanged){
   window.navStripSync();
+  // The header is rebuilt on every render; the first measurement above can land
+  // before layout settles, which left both arrows hidden even when the links
+  // overflowed. Re-measure once a frame has painted, and again after fonts load
+  // (font metrics change the track's scrollWidth).
+  requestAnimationFrame(() => window.navStripSync());
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => window.navStripSync());
 
   // The notification badge pops only when its number actually grows. The header is
   // rebuilt on every render, so applying .pop in the template would replay it constantly.
@@ -4768,35 +4755,13 @@ function afterRender(routeChanged){
   };
   _popIfGrown('.notif-badge', State.orderNotifications.filter(n=>!n.read).length, 'notif');
 
-  // Bring the active route's link into view inside the scrollable strip.
+  // Bring the active route's link into view inside the scrollable strip. Jumps
+  // rather than glides — a smooth scroll here fought the click that caused it.
   const track = document.getElementById('nav-track');
   if(track){
     const active = track.querySelector(`a[href="${State.route}"]`);
-    if(active && active.scrollIntoView) active.scrollIntoView({ block:'nearest', inline:'center', behavior: routeChanged ? 'smooth' : 'auto' });
+    if(active && active.scrollIntoView) active.scrollIntoView({ block:'nearest', inline:'center', behavior:'auto' });
   }
-
-  const main = document.querySelector('main');
-  if(!main || _reducedMotion()) return;
-
-  // Top-level page blocks, then product cards get a short stagger within their grid.
-  const targets = [];
-  Array.from(main.children).forEach((el, i)=>{
-    if(i === 0) return;                  // first block animates via .page-enter
-    el.style.transitionDelay = Math.min(i * 60, 240) + 'ms';
-    targets.push(el);
-  });
-  main.querySelectorAll('.grid > .card-hover, .grid > div > .card-hover').forEach((card, i)=>{
-    card.style.transitionDelay = Math.min((i % 8) * 55, 400) + 'ms';
-    targets.push(card);
-  });
-  targets.forEach(el=> el.classList.add('reveal'));
-  _revealPending = targets;
-
-  // A route change gets one paint in the hidden state so the rise-in actually plays.
-  // A same-route re-render (products/orders arriving over onSnapshot) reveals in this
-  // very tick instead, so content the visitor is already looking at never blinks out.
-  if(routeChanged) setTimeout(_revealScan, 30);
-  else _revealScan();
 }
 
 // Keep the strip's fades correct when the window is resized.
