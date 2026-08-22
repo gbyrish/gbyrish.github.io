@@ -142,7 +142,7 @@ export function mockChat({ messages, tools, stream }){
     const text = String(userMsg?.content || '');
     // Check if the user confirmed a write action.
     if(/^(yes|confirm|proceed|do it|go ahead)$/i.test(text) && tools){
-      return sseResponse(toolCallEvent('update_order_status', { orderId: 'GB-10001', status: 'Shipped' }));
+      return sseResponse(toolCallEvent('update_order_status', { orderId: 'GYB-1000-1234', status: 'Shipped' }));
     }
     // Pick an admin tool based on keywords.
     const adminTool = pickAdminTool(text);
@@ -177,9 +177,9 @@ function pickAdminTool(text){
   if(/\bsale\b|\brevenue\b|\bsummary\b/.test(t)) return ['get_sales_summary', {}];
   if(/\blow\b.*\bstock\b|\bout of\b.*\bstock\b/.test(t)) return ['get_low_stock_products', {}];
   if(/\border\b.*\bsearch\b|\bfind\b.*\border\b/.test(t)) return ['search_orders', { daysBack: 7, limit: 10 }];
-  if(/\border\s*(?:id|number|#)?\s*(gb-[\w-]+|\d{4,})/i.test(t)) return ['lookup_order', { orderId: (t.match(/(gb-[\w-]+)/i) || [])[1] || 'GB-10001' }];
-  if(/\bupdate\b.*\bstatus\b|\bship/.test(t)) return ['update_order_status', { orderId: 'GB-10001', status: 'Shipped' }];
-  if(/\bcancel/.test(t)) return ['cancel_order', { orderId: 'GB-10001' }];
+  if(/\border\s*(?:id|number|#)?\s*(gyb-[\w-]+|gb-[\w-]+|\d{4,})/i.test(t)) return ['lookup_order', { orderId: (t.match(/(gyb-[\w-]+|gb-[\w-]+)/i) || [])[1] || 'GYB-1000-1234' }];
+  if(/\bupdate\b.*\bstatus\b|\bship/.test(t)) return ['update_order_status', { orderId: 'GYB-1000-1234', status: 'Shipped' }];
+  if(/\bcancel/.test(t)) return ['cancel_order', { orderId: 'GYB-1000-1234' }];
   if(/\bstock\b.*\bto\b.*\d/.test(t)) return ['update_inventory', { productId: 'prod-001', stock: 10 }];
   if(/\bprice\b.*\bto\b.*\d/.test(t)) return ['update_product', { productId: 'prod-001', price: 1999 }];
   if(/\bdiscount\b.*\bcreate\b|\bpromo\b.*\bcode\b/.test(t)) return ['create_discount', { code: 'TEST20', type: 'percent', value: 20 }];

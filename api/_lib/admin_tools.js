@@ -53,9 +53,93 @@ async function fsGet(path, { idToken, query = '' } = {}){
 }
 function docId(name){ return String(name || '').split('/').pop(); }
 
+/**
+ * Run a real Firestore query.
+ *
+ * The previous code passed `query=createdAt >= "..."` to the REST *list*
+ * endpoint. That parameter does not exist — the API returns 400 — so every
+ * order search silently failed. Filtering requires documents:runQuery with a
+ * structuredQuery body.
+ */
+async function fsQuery(collectionId, { idToken, limit = 50, orderByField = null, desc = true } = {}){
+  const headers = { 'Content-Type': 'application/json' };
+  let url = `${FS_ROOT()}:runQuery`;
+  if(idToken) headers['Authorization'] = `Bearer ${idToken}`;
+  else url += `?key=${WEB_KEY()}`;
+
+  const structuredQuery = { from: [{ collectionId }], limit };
+  if(orderByField){
+    structuredQuery.orderBy = [{ field: { fieldPath: orderByField }, direction: desc ? 'DESCENDING' : 'ASCENDING' }];
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ structuredQuery }),
+    signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
+  });
+  if(!res.ok){
+    const body = await res.text().catch(() => '');
+    throw new StoreError(`Firestore query on ${collectionId} failed: ${res.status} ${body.slice(0, 160)}`,
+      { kind: res.status === 401 || res.status === 403 ? 'forbidden' : 'store' });
+  }
+  const rows = await res.json();
+  // runQuery streams an array; rows without `document` are read-time markers.
+  return (Array.isArray(rows) ? rows : []).filter(r => r && r.document).map(r => r.document);
+}
+
+/**
+ * Orders store createdAt as Date.now() (a number), but older/imported docs may
+ * carry an ISO string. Normalise to epoch ms so range filters work on both.
+ */
+function toEpoch(v){
+  if(v == null) return null;
+  if(typeof v === 'number') return v;
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? null : t;
+}
+
+/** Shared row shape for the order list tools. */
+function orderSummary(d){
+  const o = decodeFields(d.fields || {});
+  return {
+    orderId: o.orderId || docId(d.name),
+    status: o.status || 'Pending',
+    total: o.totals?.grand ?? null,
+    customer: o.customer?.name || o.customer?.email || 'Guest',
+    placedAt: o.createdAt || o.placedAt || null,
+    _epoch: toEpoch(o.createdAt || o.placedAt),
+    _raw: o,
+  };
+}
+
+/** Strip the internal fields before handing rows to the model. */
+function publicOrder({ _epoch, _raw, ...rest }){ return rest; }
+
+/**
+ * Coerce whatever the admin typed into the store's real document id.
+ *
+ * Orders are keyed by genOrderId() in index.html: `GYB-<4 digits>-<4 digits>`.
+ * The model used to be told the format was `GB-XXXXXX`, so it would echo the
+ * admin's typo, or drop/mangle the prefix, and the lookup 404'd. Accepted:
+ *   GYB-8436-4566 · gyb-8436-4566 · GB-8436-4566 · 8436-4566 · 84364566
+ */
+function normalizeOrderId(raw){
+  const s = String(raw || '').trim().toUpperCase();
+  if(!s) return '';
+  const digits = s.replace(/[^0-9]/g, '');
+  // Exactly 8 digits is unambiguous: rebuild the canonical GYB-XXXX-XXXX form.
+  if(digits.length === 8) return `GYB-${digits.slice(0, 4)}-${digits.slice(4)}`;
+  // Anything else: fix an obvious GB-/GYB- prefix slip but keep the id as given,
+  // since a non-standard id may still be a real document (imported orders).
+  if(/^GB-/.test(s)) return 'GYB-' + s.slice(3);
+  if(/^GYB-/.test(s)) return s;
+  return s;
+}
+
 /* ---------------- Admin tool schemas ---------------- */
 
-const ORDER_ID = { type: 'string', description: 'Order ID (e.g. GB-12345).' };
+const ORDER_ID = { type: 'string', description: 'Order ID in the store format GYB-XXXX-XXXX (e.g. GYB-8436-4566). Case-insensitive; the GYB- prefix may be omitted.' };
 
 export const ADMIN_TOOL_SCHEMAS = [
   /* ---- Read tools ---- */
@@ -377,43 +461,46 @@ function stripConfirmToken(args){
 async function searchOrders(args, ctx){
   const limit = Math.min(50, Math.max(1, Number(args.limit) || 10));
   const daysBack = Number(args.daysBack) || 30;
-  const statusFilter = String(args.status || '').trim();
+  const statusFilter = String(args.status || '').trim().toLowerCase();
+  const since = Date.now() - daysBack * 86400000;
 
-  const since = new Date(Date.now() - daysBack * 86400000).toISOString();
-  let url = `${FS_ROOT()}/orders?key=${process.env.FIREBASE_API_KEY || 'AIzaSyAAkIcNkUzzvcbUwXirBxsFPhtZcNqOsV0'}`;
-  const params = new URLSearchParams();
-  params.set('pageSize', String(limit));
-  const q = `createdAt >= ${since}`;
-  if(statusFilter) params.set('query', `status=="${statusFilter}" AND createdAt >= ${since}`);
-  else params.set('query', `createdAt >= ${since}`);
+  // Fetch a wider window than asked for, then filter in memory. createdAt is a
+  // number on new orders and an ISO string on older ones, so a server-side range
+  // filter would silently drop one of the two shapes.
+  const docs = await fsQuery('orders', { idToken: ctx.idToken, limit: 300 });
+  let rows = docs.map(orderSummary);
 
-  const headers = {};
-  const idToken = ctx.idToken;
-  if(idToken) headers['Authorization'] = `Bearer ${idToken}`;
+  rows = rows.filter(r => r._epoch == null || r._epoch >= since);
+  if(statusFilter) rows = rows.filter(r => String(r.status).toLowerCase() === statusFilter);
+  rows.sort((a, b) => (b._epoch || 0) - (a._epoch || 0));
 
-  const res = await fetch(`${url}&${params.toString()}`, {
-    headers,
-    signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
-  });
-  if(!res.ok) throw new StoreError(`Failed to search orders: ${res.status}`);
-  const data = await res.json();
-  const orders = (data.documents || []).map(d => {
-    const o = decodeFields(d.fields || {});
-    return {
-      orderId: o.orderId || docId(d.name),
-      status: o.status || 'Pending',
-      total: o.totals?.grand ?? null,
-      customer: o.customer?.name || o.customer?.email || 'Guest',
-      placedAt: o.createdAt || o.placedAt || null,
-    };
-  });
-  return { results: orders, total: orders.length };
+  const results = rows.slice(0, limit).map(publicOrder);
+  return { results, total: results.length, matched: rows.length, window: `last ${daysBack} days` };
 }
 
 async function lookupOrder(args, ctx){
-  const id = String(args.orderId || '').trim();
-  const result = await getOrderForUser(id, ctx.user, ctx.idToken);
-  if(result.error === 'not_found') throw new StoreError(`Order ${id} not found.`);
+  const asked = String(args.orderId || '').trim();
+  const id = normalizeOrderId(asked);
+  if(!id) throw new StoreError('An order ID is required, e.g. GYB-8436-4566.');
+
+  let result = await getOrderForUser(id, ctx.user, ctx.idToken);
+
+  // A direct doc read only works if the id matches the document key exactly.
+  // If it missed, scan the collection for a matching orderId field — this covers
+  // orders whose document key and orderId field diverge, and partial ids.
+  if(result.error === 'not_found'){
+    const digits = asked.replace(/[^0-9]/g, '');
+    const docs = await fsQuery('orders', { idToken: ctx.idToken, limit: 300 });
+    const hit = docs.find(d => {
+      const o = decodeFields(d.fields || {});
+      const candidates = [o.orderId, docId(d.name)].filter(Boolean).map(v => String(v).toUpperCase());
+      if(candidates.includes(id)) return true;
+      return digits.length >= 4 && candidates.some(c => c.replace(/[^0-9]/g, '') === digits);
+    });
+    if(hit) result = await getOrderForUser(docId(hit.name), ctx.user, ctx.idToken);
+  }
+
+  if(result.error === 'not_found') throw new StoreError(`Order ${id} not found. Order IDs look like GYB-8436-4566.`);
   if(result.error === 'not_authorized') throw new StoreError(`Not authorized to view order ${id}.`);
   if(result.error) throw new StoreError(result.error);
   return result;
@@ -422,27 +509,13 @@ async function lookupOrder(args, ctx){
 async function getTodayOrders(ctx){
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
-  const since = startOfDay.toISOString();
-  let url = `${FS_ROOT()}/orders?key=${process.env.FIREBASE_API_KEY || 'AIzaSyAAkIcNkUzzvcbUwXirBxsFPhtZcNqOsV0'}`;
-  const params = new URLSearchParams({ pageSize: '50', query: `createdAt >= "${since}"` });
-  const headers = {};
-  if(ctx.idToken) headers['Authorization'] = `Bearer ${ctx.idToken}`;
-  const res = await fetch(`${url}&${params.toString()}`, {
-    headers,
-    signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
-  });
-  if(!res.ok) throw new StoreError(`Failed to fetch today's orders: ${res.status}`);
-  const data = await res.json();
-  const orders = (data.documents || []).map(d => {
-    const o = decodeFields(d.fields || {});
-    return {
-      orderId: o.orderId || docId(d.name),
-      status: o.status || 'Pending',
-      total: o.totals?.grand ?? null,
-      customer: o.customer?.name || o.customer?.email || 'Guest',
-      placedAt: o.createdAt || o.placedAt || null,
-    };
-  });
+  const since = startOfDay.getTime();
+
+  const docs = await fsQuery('orders', { idToken: ctx.idToken, limit: 300 });
+  const orders = docs.map(orderSummary)
+    .filter(r => r._epoch != null && r._epoch >= since)
+    .sort((a, b) => (b._epoch || 0) - (a._epoch || 0))
+    .map(publicOrder);
   const revenue = orders.reduce((s, o) => s + (Number(o.total) || 0), 0);
   return {
     date: new Date().toISOString().split('T')[0],
@@ -458,19 +531,11 @@ async function salesSummary(args, ctx){
   const daysBack = Math.min(30, Math.max(1, Number(args.daysBack) || 1));
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
-  const since = new Date(startOfDay.getTime() - daysBack * 86400000).toISOString();
+  const since = startOfDay.getTime() - (daysBack - 1) * 86400000;
 
-  let url = `${FS_ROOT()}/orders?key=${process.env.FIREBASE_API_KEY || 'AIzaSyAAkIcNkUzzvcbUwXirBxsFPhtZcNqOsV0'}`;
-  const params = new URLSearchParams({ pageSize: '50', query: `createdAt >= "${since}"` });
-  const headers = {};
-  if(ctx.idToken) headers['Authorization'] = `Bearer ${ctx.idToken}`;
-  const res = await fetch(`${url}&${params.toString()}`, {
-    headers,
-    signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
-  });
-  if(!res.ok) throw new StoreError(`Failed to fetch sales: ${res.status}`);
-  const data = await res.json();
-  const orders = (data.documents || []).map(d => decodeFields(d.fields || {}));
+  const docs = await fsQuery('orders', { idToken: ctx.idToken, limit: 300 });
+  const orders = docs.map(d => decodeFields(d.fields || {}))
+    .filter(o => { const e = toEpoch(o.createdAt || o.placedAt); return e != null && e >= since; });
   const total = orders.reduce((s, o) => s + (Number(o.totals?.grand) || 0), 0);
   return {
     period: daysBack === 1 ? 'today' : `last ${daysBack} days`,
@@ -501,13 +566,14 @@ async function lowStock(args, ctx){
 /* ---- Write tool implementations ---- */
 
 async function doUpdateOrderStatus(args, ctx){
-  const { orderId, status, note } = args;
+  const { status, note } = args;
+  const orderId = normalizeOrderId(args.orderId);
   const result = await updateOrderStatus(orderId, status, ctx.idToken, note ? { adminNote: note } : {});
   return { success: true, orderId, newStatus: result.status, updatedAt: result.updatedAt };
 }
 
 async function doCancelOrder(args, ctx){
-  const result = await cancelOrder(args.orderId, ctx.idToken);
+  const result = await cancelOrder(normalizeOrderId(args.orderId), ctx.idToken);
   return { success: true, ...result };
 }
 

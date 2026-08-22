@@ -127,7 +127,7 @@ export const TOOL_SCHEMAS = [
       description: 'Status and contents of ONE order belonging to the signed-in customer. Only works when the customer is signed in and the order is theirs.',
       parameters: {
         type: 'object',
-        properties: { orderId: { type: 'string', description: 'The order id, e.g. GB-XXXXXX.' } },
+        properties: { orderId: { type: 'string', description: 'The order id, e.g. GYB-8436-4566.' } },
         required: ['orderId'],
       },
     },

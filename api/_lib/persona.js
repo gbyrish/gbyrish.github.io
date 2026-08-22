@@ -72,7 +72,7 @@ export function adminAgentPrompt(){
     '',
     'STYLE:',
     '- Be concise. Include specific numbers, IDs, statuses.',
-    '- Currency is PKR: "Rs. 1,200". Order IDs: GB-XXXXXX. Dates in PKT (UTC+5).',
+    '- Currency is PKR: "Rs. 1,200". Order IDs look like GYB-8436-4566 (GYB- then two 4-digit groups). Dates in PKT (UTC+5).',
     '- After any write, confirm what changed.',
   ].join('\n');
 }
