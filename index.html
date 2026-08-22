@@ -476,8 +476,8 @@ const CAT_HASH = {
   'Stainless Steel Jewelry':'#jewelry',
   'Bouquets (Customizable)':'#bouquets',
   'Customized Baskets':'#giftbaskets',
-  'Wallet':'#customized',
-  'Ring':'#customrings',
+  'Wallet':'#wallet',
+  'Ring':'#rings',
   'Deals':'#deals'
 };
 const HASH_CAT = Object.fromEntries(Object.entries(CAT_HASH).map(([k,v])=>[v,k]));
@@ -822,11 +822,14 @@ function normalizeRoute(route){
   const map = {
     '#shopall': '#shop',
     '#jewelry': '#shop?cat=' + encodeURIComponent('Stainless Steel Jewelry'),
-    '#customized': '#shop?cat=' + encodeURIComponent('Wallet'),
+    '#wallet': '#shop?cat=' + encodeURIComponent('Wallet'),
     '#giftbaskets': '#shop?cat=' + encodeURIComponent('Customized Baskets'),
     '#bouquets': '#shop?cat=' + encodeURIComponent('Bouquets (Customizable)'),
-    '#customrings': '#shop?cat=' + encodeURIComponent('Ring'),
+    '#rings': '#shop?cat=' + encodeURIComponent('Ring'),
     '#deals': '#shop?cat=' + encodeURIComponent('Deals'),
+    // Legacy aliases — old links and bookmarks still land in the right place.
+    '#customized': '#shop?cat=' + encodeURIComponent('Wallet'),
+    '#customrings': '#shop?cat=' + encodeURIComponent('Ring'),
     '#trackorder': '#track-order'
   };
   if(map[route]) return map[route];
@@ -1429,10 +1432,10 @@ function Header(){
             <a href="#home" class="navlink hover:text-primary">Home</a>
             <a href="#shopall" class="navlink hover:text-primary">Shop All</a>
             <a href="#jewelry" class="navlink hover:text-primary">Jewellery</a>
-            <a href="#customized" class="navlink hover:text-primary">Wallet</a>
+            <a href="#wallet" class="navlink hover:text-primary">Wallet</a>
             <a href="#giftbaskets" class="navlink hover:text-primary">Gift Baskets</a>
             <a href="#bouquets" class="navlink hover:text-primary">Bouquets</a>
-            <a href="#customrings" class="navlink hover:text-primary">Ring</a>
+            <a href="#rings" class="navlink hover:text-primary">Ring</a>
             <a href="#deals" class="navlink hover:text-primary text-accentDark">Deals</a>
             <a href="#trackorder" class="navlink hover:text-primary">Track Order</a>
             <a href="#faq" class="navlink hover:text-primary">FAQ</a>
@@ -1480,10 +1483,10 @@ function MobileMenu(){
       <a href="#home" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Home</a>
       <a href="#shopall" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Shop All</a>
       <a href="#jewelry" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Jewellery</a>
-      <a href="#customized" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Wallet</a>
+      <a href="#wallet" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Wallet</a>
       <a href="#giftbaskets" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Gift Baskets</a>
       <a href="#bouquets" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Bouquets</a>
-      <a href="#customrings" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Ring</a>
+      <a href="#rings" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">Ring</a>
       <a href="#deals" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100 text-accentDark font-medium">Deals</a>
       <a href="#orders" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">My Orders</a>
       ${State.user ? '<a href="#wishlist" onclick="window.toggleMobileMenu()" class="py-3 border-b border-gray-100">&#9829; Wishlist</a>' : ''}
@@ -3774,7 +3777,6 @@ function pageAdminAgent(){
       <img id="admin-agent-img-thumb" class="h-10 w-10 object-cover rounded-lg border border-gray-200">
       <button type="button" onclick="window.adminAgentClearImage()" class="text-xs text-red-500 hover:text-red-700">Remove</button>
     </div>
-    <script>setTimeout(function(){ if(typeof window.initAdminAgentImage==='function') window.initAdminAgentImage(); }, 50);</script>
   </div>`;
 }
 function settingsPreviewHtml(s){
@@ -4658,10 +4660,10 @@ function Footer(){
         <h4 class="font-medium mb-3">Shop</h4>
         <div class="flex flex-col gap-2 text-sm text-gray-500">
           <a href="#jewelry" class="hover:text-primary">Jewellery</a>
-          <a href="#customized" class="hover:text-primary">Wallet</a>
+          <a href="#wallet" class="hover:text-primary">Wallet</a>
           <a href="#giftbaskets" class="hover:text-primary">Gift Baskets</a>
           <a href="#bouquets" class="hover:text-primary">Bouquets</a>
-          <a href="#customrings" class="hover:text-primary">Ring</a>
+          <a href="#rings" class="hover:text-primary">Ring</a>
         </div>
       </div>
       <div>
@@ -4863,6 +4865,9 @@ function doRender(){
     if(typeof window.mountFloatingButtons === 'function') window.mountFloatingButtons();
     if(route === '#admin/discounts'){
       setTimeout(() => { if(typeof window.populateDiscountProductLists === 'function') window.populateDiscountProductLists(); }, 50);
+    }
+    if(route === '#admin/agent'){
+      setTimeout(() => { if(typeof window.initAdminAgentImage === 'function') window.initAdminAgentImage(); }, 50);
     }
   }catch(err){
     console.error('Render error:', err);
@@ -5449,7 +5454,7 @@ const Helpish = {
   // Turn the site's own hash routes into real links. Text is escaped first, so
   // nothing a model or a product description contains can inject markup.
   linkify(text){
-    const routePattern = /#(product\/[A-Za-z0-9_-]{4,}|shopall|shop\?cat=[^\s,.;)]+|jewelry|bouquets|giftbaskets|customized|customrings|deals|wishlist|compare|checkout|profile|orders|track-order(?:\/[A-Za-z0-9_-]+)?|faq|home)\b/g;
+    const routePattern = /#(product\/[A-Za-z0-9_-]{4,}|shopall|shop\?cat=[^\s,.;)]+|jewelry|bouquets|giftbaskets|wallet|rings|customized|customrings|deals|wishlist|compare|checkout|profile|orders|track-order(?:\/[A-Za-z0-9_-]+)?|faq|home)\b/g;
     return escapeHtml(text).replace(routePattern, (match) => {
       const route = match.replace(/&amp;/g, '&');
       let label = 'View';
@@ -5729,20 +5734,6 @@ window.helpishAsk = function(text){
 };
 window.helpishRetry = function(){ Helpish.retry(); };
 window.helpishRemoveImage = function(){ Helpish.removeImage(); };
-window.helpishFollowLink = function(){
-  // On mobile the panel covers the page, so tapping a product link should reveal it.
-  if(window.matchMedia('(max-width:767px)').matches) Helpish.close();
-};
-window.openHelpish = function(){ Helpish.mount(); Helpish.openPanel(); };
-window.helpishSyncVisibility = function(route){ if(Helpish.mounted) Helpish.syncVisibility(route); };
-
-Helpish.mount();
-
-window.helpishAsk = function(text){
-  Helpish.messages = Helpish.messages.filter(m => m.role !== 'note');
-  Helpish.send(text);
-};
-window.helpishRetry = function(){ Helpish.retry(); };
 window.helpishFollowLink = function(){
   // On mobile the panel covers the page, so tapping a product link should reveal it.
   if(window.matchMedia('(max-width:767px)').matches) Helpish.close();

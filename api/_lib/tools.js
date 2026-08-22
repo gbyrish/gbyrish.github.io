@@ -31,8 +31,8 @@ const CAT_HASH = {
   'Stainless Steel Jewelry': '#jewelry',
   'Bouquets (Customizable)': '#bouquets',
   'Customized Baskets': '#giftbaskets',
-  'Wallet': '#customized',
-  'Ring': '#customrings',
+  'Wallet': '#wallet',
+  'Ring': '#rings',
   'Deals': '#deals',
 };
 
