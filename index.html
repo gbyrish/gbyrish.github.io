@@ -172,10 +172,26 @@ tailwind.config = {
     border-radius:9999px; background:rgba(255,255,255,.95); box-shadow:0 2px 8px rgba(139,111,78,.25);
     display:flex; visibility:hidden; align-items:center; justify-content:center; font-size:14px;
     line-height:1; color:#8B6F4E; cursor:pointer; padding:0; border:0;
-    /* Overrides the global button transition — these appear and scroll instantly. */
+    /* Overrides the global button transition — the buttons themselves don't
+       animate. The track still glides when nudged. */
     transition:none; }
   .nav-strip.can-l .nav-arrow.left, .nav-strip.can-r .nav-arrow.right { visibility:visible; }
   .dark .nav-arrow { background:rgba(30,30,30,.95); color:#E8A0BF; }
+
+  /* Admin tab strip — same flex-sibling arrangement as the header nav, so the
+     arrows can never overlap the first/last tab pill. */
+  .tab-strip { display:flex; align-items:center; gap:.25rem; }
+  .tab-strip > .tab-track { flex:1 1 auto; min-width:0; display:flex; gap:.5rem;
+    overflow-x:auto; scroll-behavior:smooth; scrollbar-width:none; -ms-overflow-style:none; padding:.25rem; }
+  .tab-strip > .tab-track::-webkit-scrollbar { display:none; }
+  .tab-strip > .tab-track > a { flex:0 0 auto; white-space:nowrap; }
+  .tab-arrow { flex:0 0 auto; width:32px; height:32px; border-radius:9999px;
+    background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.12); display:flex; visibility:hidden;
+    align-items:center; justify-content:center; color:#6b7280; cursor:pointer;
+    padding:0; border:0; transition:none; }
+  .tab-arrow:hover { color:#8B6F4E; }
+  .tab-strip.can-l > .tab-arrow.left, .tab-strip.can-r > .tab-arrow.right { visibility:visible; }
+  .dark .tab-arrow { background:#1e1e1e; color:#bbb; }
 
   /* ===== Motion ===== */
   @keyframes riseIn   { from{opacity:0; transform:translateY(18px)} to{opacity:1; transform:translateY(0)} }
@@ -2879,13 +2895,12 @@ function pageFAQ(){
 /* ---------------- Admin Pages ---------------- */
 function adminNav(active){
   const items = [['#admin','Dashboard'],['#admin/sale','Sale Event'],['#admin/discounts','Spend Discount'],['#admin/product','Add Product'],['#admin/inventory','Inventory'],['#admin/orders','Orders'],['#admin/agent','AI Agent'],['#admin/trash','Recycle Bin'],['#admin/settings','Site Settings']];
-  const id = 'admin-nav-' + Math.random().toString(36).slice(2, 8);
-  return `<div class="relative mb-8">
-    <button type="button" onclick="document.getElementById('${id}').scrollBy({left:-200,behavior:'smooth'})" class="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white shadow-md rounded-full items-center justify-center text-gray-500 hover:text-primary">&lsaquo;</button>
-    <div id="${id}" class="flex gap-2 overflow-x-auto hide-scrollbar scroll-smooth px-1">
-      ${items.map(([h,l])=>`<a href="${h}" class="shrink-0 px-5 py-2.5 rounded-full text-sm font-medium ${active===h? 'bg-primary text-white':'bg-cream2 text-ink'}">${l}</a>`).join('')}
+  return `<div class="tab-strip mb-8">
+    <button type="button" class="tab-arrow left hidden md:flex" onclick="window.tabStripNudge(this,-1)" aria-label="Scroll tabs left">&lsaquo;</button>
+    <div class="tab-track hide-scrollbar" onscroll="window.tabStripSync(this)">
+      ${items.map(([h,l])=>`<a href="${h}" class="px-5 py-2.5 rounded-full text-sm font-medium ${active===h? 'bg-primary text-white':'bg-cream2 text-ink'}">${l}</a>`).join('')}
     </div>
-    <button type="button" onclick="document.getElementById('${id}').scrollBy({left:200,behavior:'smooth'})" class="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white shadow-md rounded-full items-center justify-center text-gray-500 hover:text-primary">&rsaquo;</button>
+    <button type="button" class="tab-arrow right hidden md:flex" onclick="window.tabStripNudge(this,1)" aria-label="Scroll tabs right">&rsaquo;</button>
   </div>`;
 }
 function pageAdminSale(){
@@ -4724,24 +4739,54 @@ window.navStripSync = function(){
   strip.classList.toggle('can-r', max > 4 && track.scrollLeft < max - 4);
 };
 
-// Arrow buttons nudge the strip by ~70% of its visible width. Instant, no glide.
+// Arrow buttons nudge the strip by ~70% of its visible width. The glide is fine —
+// what had to go was the buttons' own hover/appear animation.
 window.navStripNudge = function(dir){
   const track = document.getElementById('nav-track');
   if(!track) return;
   const max = track.scrollWidth - track.clientWidth;
   const step = Math.max(160, track.clientWidth * 0.7);
-  track.scrollLeft = Math.max(0, Math.min(max, track.scrollLeft + dir * step));
-  window.navStripSync();
+  const to = Math.max(0, Math.min(max, track.scrollLeft + dir * step));
+  track.scrollTo({ left: to, behavior: 'smooth' });
+  setTimeout(window.navStripSync, 320);
+};
+
+/* ---- Admin tab strip: same arrangement, arrows are flex siblings ---- */
+
+window.tabStripSync = function(track){
+  const strip = track && track.closest('.tab-strip');
+  if(!strip) return;
+  const max = track.scrollWidth - track.clientWidth;
+  strip.classList.toggle('can-l', track.scrollLeft > 4);
+  strip.classList.toggle('can-r', max > 4 && track.scrollLeft < max - 4);
+};
+
+window.tabStripNudge = function(btn, dir){
+  const strip = btn.closest('.tab-strip');
+  const track = strip && strip.querySelector('.tab-track');
+  if(!track) return;
+  const max = track.scrollWidth - track.clientWidth;
+  const step = Math.max(200, track.clientWidth * 0.7);
+  const to = Math.max(0, Math.min(max, track.scrollLeft + dir * step));
+  track.scrollTo({ left: to, behavior: 'smooth' });
+  setTimeout(() => window.tabStripSync(track), 320);
+};
+
+// Admin pages are rebuilt on every render, so measure each tab strip after paint.
+window.tabStripSyncAll = function(){
+  document.querySelectorAll('.tab-strip > .tab-track').forEach(t => window.tabStripSync(t));
 };
 
 function afterRender(routeChanged){
   window.navStripSync();
+  window.tabStripSyncAll();
   // The header is rebuilt on every render; the first measurement above can land
   // before layout settles, which left both arrows hidden even when the links
   // overflowed. Re-measure once a frame has painted, and again after fonts load
   // (font metrics change the track's scrollWidth).
   requestAnimationFrame(() => window.navStripSync());
   if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => window.navStripSync());
+  requestAnimationFrame(() => window.tabStripSyncAll());
 
   // The notification badge pops only when its number actually grows. The header is
   // rebuilt on every render, so applying .pop in the template would replay it constantly.
@@ -4765,7 +4810,7 @@ function afterRender(routeChanged){
 }
 
 // Keep the strip's fades correct when the window is resized.
-window.addEventListener('resize', ()=> window.navStripSync());
+window.addEventListener('resize', ()=> { window.navStripSync(); window.tabStripSyncAll(); });
 
 function doRender(){
   const root = document.getElementById('app-root');
