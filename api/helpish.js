@@ -163,6 +163,7 @@ async function runChatTurn({ stream, messages, ctx }){
 
     const { text, toolCalls } = await readStream(res, {
       onText: (delta) => { anyText = true; stream.send({ type: 'text', delta }); },
+      onThinking: (delta) => { stream.send({ type: 'thinking', delta }); },
     });
 
     if(!toolCalls.length) return { anyText };
@@ -263,6 +264,9 @@ async function runAdminAgentTurn({ stream, messages, ctx, isConfirmRound = false
         onText: (delta) => {
           anyText = true;
           stream.send({ type: 'text', delta });
+        },
+        onThinking: (delta) => {
+          stream.send({ type: 'thinking', delta });
         },
       });
 

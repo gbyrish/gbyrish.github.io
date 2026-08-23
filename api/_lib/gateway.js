@@ -78,6 +78,7 @@ async function ollamaCall({ messages, tools, stream, maxTokens, temperature, tim
   const body = {
     model: modelName(),
     messages: toOllamaMessages(messages),
+    think: true,                                    // surface the model's reasoning
     options: { num_predict: maxTokens, temperature },
   };
   if(tools && tools.length) body.tools = tools;
@@ -109,6 +110,7 @@ async function ollamaCall({ messages, tools, stream, maxTokens, temperature, tim
         message: {
           role: msg.role || 'assistant',
           content: msg.content || null,
+          thinking: msg.thinking || '',
           tool_calls: normalizeToolCalls(msg.tool_calls),
         },
         finish_reason: data.done_reason || (msg.tool_calls ? 'tool_calls' : 'stop'),
@@ -175,8 +177,8 @@ export async function chat({ messages, tools, stream = false, maxTokens = 1024, 
  * Handles both Ollama's native newline-delimited JSON streaming and
  * non-streaming JSON responses.
  */
-export async function readStream(res, { onText } = {}){
-  if(!res) return { text: '', toolCalls: [], finish: null };
+export async function readStream(res, { onText, onThinking } = {}){
+  if(!res) return { text: '', thinking: '', toolCalls: [], finish: null };
 
   // Ollama streaming: newline-delimited JSON
   if(res.stream && res.rawRes){
@@ -184,6 +186,7 @@ export async function readStream(res, { onText } = {}){
     const decoder = new TextDecoder();
     let buffer = '';
     let text = '';
+    let thinking = '';
     const tcs = [];
     let finish = null;
 
@@ -200,6 +203,10 @@ export async function readStream(res, { onText } = {}){
         try { json = JSON.parse(line); } catch { continue; }
 
         const msg = json.message || {};
+        if(msg.thinking){
+          thinking += msg.thinking;
+          if(onThinking) await onThinking(msg.thinking);
+        }
         if(msg.content){
           text += msg.content;
           if(onText) await onText(msg.content);
@@ -216,7 +223,7 @@ export async function readStream(res, { onText } = {}){
         if(json.done) finish = json.done_reason || 'stop';
       }
     }
-    return { text, toolCalls: tcs.filter(Boolean), finish };
+    return { text, thinking, toolCalls: tcs.filter(Boolean), finish };
   }
 
   // Non-streaming JSON response
@@ -225,8 +232,10 @@ export async function readStream(res, { onText } = {}){
     const msg = data.choices[0]?.message || {};
     const tcs = normalizeToolCalls(msg.tool_calls);
     const text = msg.content || '';
+    const thinking = msg.thinking || '';
+    if(thinking && onThinking) await onThinking(thinking);
     if(text && onText) await onText(text);
-    return { text, toolCalls: tcs, finish: data.choices[0]?.finish_reason || 'stop' };
+    return { text, thinking, toolCalls: tcs, finish: data.choices[0]?.finish_reason || 'stop' };
   }
-  return { text: '', toolCalls: [], finish: null };
+  return { text: '', thinking: '', toolCalls: [], finish: null };
 }
