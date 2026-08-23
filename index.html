@@ -799,6 +799,7 @@ function requireAdmin(){
   if(!State.isAdmin){ toast('Admin access only','err'); location.hash='#home'; return false; }
   return true;
 }
+window.requireAdmin = requireAdmin;
 window.addAdminEmail = async function(){
   if(!requireAdmin() || !requireFirebase()) return;
   const input = document.getElementById('new-admin-email');
@@ -4071,7 +4072,12 @@ window.adminAgentSend = async function(){
       body: JSON.stringify(bodyPayload),
     });
 
-    if(!res.ok || !res.body) throw new Error('Server error: ' + res.status);
+    if(!res.ok || !res.body){
+      let reason = 'Server error: ' + res.status;
+      if(res.status === 403) reason = 'admin-only';
+      try{ const j = await res.clone().json(); if(j.error) reason = j.error; }catch{}
+      throw new Error(reason);
+    }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -4104,9 +4110,15 @@ window.adminAgentSend = async function(){
             break;
           }
           case 'tool_call': {
-            // start a tool block inside the current assistant turn
+            // Backend streams model reasoning as `text` deltas before the tool call.
+            // Move that accumulated text into `thinking` so it renders in the collapsible block.
             if(window.coworkCurrentTurn){
-              window.coworkCurrentTurn.tools.push({
+              const cur = window.coworkCurrentTurn;
+              if(cur.text && !cur.thinking){
+                cur.thinking = cur.text;
+                cur.text = '';
+              }
+              cur.tools.push({
                 id: ev.id, name: ev.name, label: ev.label || toolLabel(ev.name),
                 args: ev.args || '', result: null, error: false,
                 startTime: Date.now(), done: false,
@@ -4155,7 +4167,14 @@ window.adminAgentSend = async function(){
       }
     }
   }catch(err){
-    window.coworkTurns.push({ type:'note', text: 'Could not reach the server. Check your connection and try again.' });
+    window.coworkBusy = false;
+    const msg = String(err?.message || '');
+    const text = msg === 'admin-only'
+      ? 'This agent is only available to store admins. Sign in with an admin account.'
+      : (msg && msg !== 'Failed to fetch' && !msg.startsWith('Server error')
+          ? msg
+          : 'Could not reach the server. Check your connection and try again.');
+    window.coworkTurns.push({ type:'note', text });
     window.coworkRender();
   }
 
@@ -4252,6 +4271,7 @@ window.adminAgentConfirm = async function(){
       }
     }
   }catch(err){
+    window.coworkBusy = false;
     window.coworkTurns.push({ type:'note', text: 'Could not reach the server.' });
     window.coworkRender();
   }
@@ -5521,7 +5541,7 @@ window.addEventListener('keydown', (e) => {
    Leave it empty on any host that serves the API itself — localhost, or an
    all-Vercel deploy — and the same-origin path is used. This is the only line
    that changes when the backend moves; the API key still never touches this file. */
-const HELPISH_API_ORIGIN = '';
+const HELPISH_API_ORIGIN = location.hostname.endsWith('github.io') ? 'https://gbyrish-github-io.vercel.app' : '';
 const HELPISH_ENDPOINT = HELPISH_API_ORIGIN.replace(/\/+$/, '') + '/api/helpish';
 const HELPISH_STORE_KEY = 'gbyrish_helpish_chat';
 
