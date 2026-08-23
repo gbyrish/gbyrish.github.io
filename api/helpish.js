@@ -166,7 +166,20 @@ async function runChatTurn({ stream, messages, ctx }){
       onThinking: (delta) => { stream.send({ type: 'thinking', delta }); },
     });
 
-    if(!toolCalls.length) return { anyText };
+    if(!toolCalls.length){
+      if(anyText) return { anyText };
+      // No tool call and no visible reply. This happens when the model answers
+      // entirely inside its reasoning channel (or the small tool-round token
+      // budget is spent on thinking before any content is produced) — common on
+      // vision turns. Make one more call with no tools and a full budget so it
+      // emits a real answer instead of falling through to the "no answer" note.
+      const forced = await chat({ messages, stream: true, maxTokens: 700, temperature: 0.4 });
+      await readStream(forced, {
+        onText: (delta) => { anyText = true; stream.send({ type: 'text', delta }); },
+        onThinking: (delta) => { stream.send({ type: 'thinking', delta }); },
+      });
+      return { anyText };
+    }
 
     // Record the model's tool request, then run each tool server-side.
     messages.push({

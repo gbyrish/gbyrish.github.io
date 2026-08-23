@@ -17,6 +17,19 @@ function ollamaKey(){
   return process.env.OLLAMA_API_KEY;
 }
 
+// Pull raw base64 out of whatever image shape reaches us: a plain base64
+// string, a data URI, or the frontend's { data, type } object.
+function toRawBase64(img){
+  if(!img) return null;
+  if(typeof img === 'object'){
+    const data = img.data || img.url || img.image_url?.url || '';
+    return toRawBase64(data);
+  }
+  const s = String(img);
+  const match = s.match(/^data:[^;]+;base64,(.+)$/);
+  return match ? match[1] : s;
+}
+
 // Convert messages to Ollama-native format.
 function toOllamaMessages(messages){
   return messages.map(m => {
@@ -40,13 +53,19 @@ function toOllamaMessages(messages){
       for(const part of m.content){
         if(part.type === 'text') text += part.text;
         else if(part.type === 'image_url' || part.type === 'image'){
-          const url = part.image_url?.url || part.url || '';
-          // Strip data URI prefix — Ollama wants raw base64.
-          const match = url.match(/^data:[^;]+;base64,(.+)$/);
-          if(match) images.push(match[1]);
+          const raw = toRawBase64(part);
+          if(raw) images.push(raw);
         }
       }
       const out = { role: m.role, content: text || undefined };
+      if(images.length) out.images = images;
+      return out;
+    }
+    // Images may also arrive as a separate `images` field (the Helpish widget
+    // sends { data, type } objects, or base64/data-URI strings).
+    if(m.images && Array.isArray(m.images) && m.images.length){
+      const images = m.images.map(toRawBase64).filter(Boolean);
+      const out = { role: m.role, content: m.content || undefined };
       if(images.length) out.images = images;
       return out;
     }
