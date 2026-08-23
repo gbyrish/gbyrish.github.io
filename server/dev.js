@@ -83,6 +83,11 @@ async function serveStatic(req, res, pathname){
 /* ---------------- Server ---------------- */
 
 await loadEnv();
+// Local dev convenience: unlock the admin agent without a signed-in Firebase
+// admin. This ONLY affects `node server/dev.js` on your machine — Vercel runs
+// api/helpish.js directly and never executes this file, so production stays
+// gated to real admins. Set HELPISH_DEV_ADMIN=0 in .env.local to force the gate.
+if(!('HELPISH_DEV_ADMIN' in process.env)) process.env.HELPISH_DEV_ADMIN = '1';
 // Imported after the env is loaded so the handler sees the key.
 const { default: helpish } = await import('../api/helpish.js');
 

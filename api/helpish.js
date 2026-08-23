@@ -370,7 +370,11 @@ export default async function handler(req, res){
   const user = await verifyIdToken(idToken);
 
   /* --- Admin modes: gated to verified admins only --- */
-  if(!process.env.HELPISH_MOCK && (mode === 'admin_draft' || mode === 'admin_chat' || mode === 'admin_confirm')){
+  // HELPISH_DEV_ADMIN is a LOCAL-ONLY escape hatch: it lets `node server/dev.js`
+  // exercise the admin agent without a signed-in Firebase admin. Vercel never
+  // sets it, so production stays gated to real admins.
+  const devAdmin = process.env.HELPISH_DEV_ADMIN === '1';
+  if(!process.env.HELPISH_MOCK && !devAdmin && (mode === 'admin_draft' || mode === 'admin_chat' || mode === 'admin_confirm')){
     const admin = user ? await isAdmin(user, idToken) : false;
     if(!admin){
       res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders(req) });
