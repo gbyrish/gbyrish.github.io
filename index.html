@@ -153,12 +153,12 @@ tailwind.config = {
   .nav-strip { position:relative; flex:1 1 auto; min-width:0; align-items:center; }
   .nav-strip > nav { flex:1 1 auto; min-width:0;
     display:flex; align-items:center; gap:1.6rem; overflow-x:auto; overflow-y:hidden;
-    padding:.85rem .3rem; scrollbar-width:none; -ms-overflow-style:none;
+    padding:.85rem .3rem; scroll-behavior:smooth; scrollbar-width:none; -ms-overflow-style:none;
     overscroll-behavior-x:contain; }
   .nav-strip > nav::-webkit-scrollbar { display:none; }
   .nav-strip > nav > a { flex:0 0 auto; white-space:nowrap; }
   .nav-strip::before, .nav-strip::after { content:''; position:absolute; top:0; bottom:0; width:36px;
-    pointer-events:none; z-index:2; opacity:0; }
+    pointer-events:none; z-index:2; opacity:0; transition:opacity .25s ease; }
   .nav-strip::before { left:24px;  background:linear-gradient(90deg,#FDF8F3 25%,rgba(253,248,243,0)); }
   .nav-strip::after  { right:24px; background:linear-gradient(270deg,#FDF8F3 25%,rgba(253,248,243,0)); }
   .nav-strip.can-l::before { opacity:1; }
@@ -4800,12 +4800,13 @@ function afterRender(routeChanged){
   };
   _popIfGrown('.notif-badge', State.orderNotifications.filter(n=>!n.read).length, 'notif');
 
-  // Bring the active route's link into view inside the scrollable strip. Jumps
-  // rather than glides — a smooth scroll here fought the click that caused it.
+  // Bring the active route's link into view inside the scrollable strip. Glides on a
+  // real route change, jumps on incidental re-renders (add to cart, auth resolving)
+  // so the bar doesn't slide around when the route didn't actually move.
   const track = document.getElementById('nav-track');
   if(track){
     const active = track.querySelector(`a[href="${State.route}"]`);
-    if(active && active.scrollIntoView) active.scrollIntoView({ block:'nearest', inline:'center', behavior:'auto' });
+    if(active && active.scrollIntoView) active.scrollIntoView({ block:'nearest', inline:'center', behavior: routeChanged ? 'smooth' : 'auto' });
   }
 }
 
