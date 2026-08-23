@@ -303,6 +303,82 @@ tailwind.config = {
   .hp-status i:nth-child(3){ animation-delay:.36s; }
   @keyframes hpDot { 0%,100%{ opacity:.25; transform:translateY(0); } 50%{ opacity:1; transform:translateY(-2px); } }
 
+  /* ===== Giftish Cowork — admin agent block UI ===== */
+  .cowork-header { display:flex; align-items:center; gap:.6rem; padding:.65rem .85rem;
+    border-bottom:1px solid #E8DFD5; }
+  .cowork-avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#8B6F4E;
+    color:#fff; display:flex; align-items:center; justify-content:center; font-size:.7rem;
+    font-weight:600; flex-shrink:0; }
+  .cowork-name { font-weight:600; font-size:.88rem; color:#2C2C2C; }
+  .cowork-sub { font-size:.7rem; color:#8a7f74; }
+  .cowork-clear { margin-left:auto; font-size:.7rem; color:#8a7f4E; cursor:pointer;
+    background:none; border:0; padding:.2rem .4rem; border-radius:.3rem; }
+  .cowork-clear:hover { background:#F5EDE4; }
+
+  .cowork-log { flex:1; overflow-y:auto; padding:.85rem; display:flex; flex-direction:column; gap:.5rem; }
+  .cowork-block { display:flex; flex-direction:column; gap:.35rem; max-width:92%; }
+
+  /* user turn */
+  .cowork-block.me { align-self:flex-end; max-width:78%; }
+  .cowork-block.me .cowork-bubble {
+    background:#8B6F4E; color:#fff; border-radius:1.1rem 1.1rem .4rem 1.1rem;
+    padding:.55rem .9rem; font-size:.84rem; line-height:1.55; word-break:break-word; }
+  .cowork-block.me .cowork-bubble a { color:#FFE0B2; }
+
+  /* assistant / bot turn */
+  .cowork-block.bot { align-self:flex-start; max-width:92%; }
+  .cowork-bubble { background:#F5EDE4; color:#2C2C2C; border-radius:1.1rem 1.1rem 1.1rem .4rem;
+    padding:.55rem .9rem; font-size:.84rem; line-height:1.55; word-break:break-word; }
+  .dark .cowork-bubble { background:#1C1C1C; color:#E5E5E5; }
+
+  /* thinking block */
+  .cowork-thinking { border:1px solid #D4C8BA; border-radius:.75rem; overflow:hidden;
+    background:#FAF6F1; font-size:.78rem; }
+  .dark .cowork-thinking { border-color:#3A3530; background:#1A1816; }
+  .cowork-thinking-hdr { display:flex; align-items:center; gap:.35rem; padding:.4rem .65rem;
+    cursor:pointer; user-select:none; color:#6b5f53; font-weight:500; }
+  .cowork-thinking-hdr:hover { background:rgba(139,111,78,.06); }
+  .cowork-thinking-chevron { transition:transform .18s; font-size:.6rem; }
+  .cowork-thinking.open .cowork-thinking-chevron { transform:rotate(90deg); }
+  .cowork-thinking-body { display:none; padding:.45rem .65rem .6rem; color:#5c5147;
+    border-top:1px solid #E8DFD5; white-space:pre-wrap; word-break:break-word; }
+  .dark .cowork-thinking-body { color:#a09890; border-color:#2E2A26; }
+  .cowork-thinking.open .cowork-thinking-body { display:block; }
+  .cowork-thinking-dots { display:inline-flex; gap:.22rem; align-items:center; margin-left:.35rem; }
+  .cowork-thinking-dots i { width:.35rem; height:.35rem; border-radius:50%; background:#8B6F4E; opacity:.35;
+    animation:hpDot 1.1s ease-in-out infinite; }
+  .cowork-thinking-dots i:nth-child(2){ animation-delay:.18s; }
+  .cowork-thinking-dots i:nth-child(3){ animation-delay:.36s; }
+
+  /* tool call card */
+  .cowork-toolcard { border:1px solid #E8DFD5; border-radius:.7rem; overflow:hidden;
+    background:#fff; font-size:.78rem; }
+  .dark .cowork-toolcard { border-color:#2E2A26; background:#1A1A1A; }
+  .cowork-toolcard-hdr { display:flex; align-items:center; gap:.4rem; padding:.4rem .65rem;
+    cursor:pointer; user-select:none; color:#6b5f53; }
+  .cowork-toolcard-hdr:hover { background:rgba(139,111,78,.04); }
+  .cowork-toolcard-icon { width:1.1rem; height:1.1rem; border-radius:.3rem; background:#8B6F4E;
+    color:#fff; display:flex; align-items:center; justify-content:center; font-size:.55rem; font-weight:700; }
+  .cowork-toolcard-name { font-weight:600; color:#2C2C2C; }
+  .dark .cowork-toolcard-name { color:#E5E5E5; }
+  .cowork-toolcard-time { margin-left:auto; font-size:.68rem; color:#8a7f74; }
+  .cowork-toolcard-chevron { font-size:.6rem; color:#8a7f74; transition:transform .18s; }
+  .cowork-toolcard.open .cowork-toolcard-chevron { transform:rotate(90deg); }
+  .cowork-toolcard-body { display:none; padding:.45rem .65rem .55rem; border-top:1px solid #E8DFD5;
+    color:#5c5147; white-space:pre-wrap; word-break:break-word; }
+  .dark .cowork-toolcard-body { color:#a09890; border-color:#2E2A26; }
+  .cowork-toolcard.open .cowork-toolcard-body { display:block; }
+  .cowork-toolcard-err { color:#c0392b; }
+  .dark .cowork-toolcard-err { color:#E57373; }
+
+  .cowork-note { align-self:stretch; text-align:center; font-size:.73rem; color:#8a5a12;
+    background:#FFF7ED; border:1px solid #FDE9CE; padding:.4rem .7rem; border-radius:.6rem; }
+  .dark .cowork-note { background:#2A2008; color:#E8C88A; border-color:#3A2E10; }
+
+  /* progress label */
+  .cowork-status { align-self:flex-start; font-size:.72rem; color:#8a7f74; padding:.1rem .4rem;
+    display:flex; align-items:center; gap:.35rem; }
+
   .hp-chips { display:flex; gap:.4rem; padding:0 1rem .6rem; flex-wrap:wrap; }
   .hp-chip { border:1px solid #E8DFD5; background:#fff; color:#5c5147; border-radius:9999px;
     padding:.34rem .7rem; font-size:.73rem; cursor:pointer; transition:background .18s, border-color .18s; }
@@ -3768,36 +3844,42 @@ function pageAdminAgent(){
   if(!requireAdmin()) return '';
   return `
   <div class="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
-    <h1 class="font-serif text-2xl md:text-3xl mb-1">Store Management Agent</h1>
-    <p class="text-gray-500 text-sm mb-6">Ask Helpish to manage orders, inventory, discounts, and settings. Write actions require your confirmation.</p>
     ${adminNav('#admin/agent')}
-
-    <div id="admin-agent-log" class="bg-white border border-gray-100 rounded-2xl p-4 md:p-6 mb-4 min-h-[240px] max-h-[50vh] overflow-y-auto flex flex-col gap-3"></div>
-
-    <div id="admin-agent-confirm" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 md:p-5 mb-4">
-      <p class="text-sm font-medium text-amber-800 mb-1" id="admin-agent-confirm-text"></p>
-      <p class="text-xs text-amber-600 mb-3">This will modify store data. Reply yes to confirm or no to cancel.</p>
-      <div class="flex gap-2">
-        <button type="button" onclick="window.adminAgentConfirm()" class="px-4 py-2 bg-amber-800 text-white text-sm rounded-xl hover:bg-amber-900 transition">Confirm</button>
-        <button type="button" onclick="window.adminAgentDeny()" class="px-4 py-2 border border-amber-300 text-amber-800 text-sm rounded-xl hover:bg-amber-100 transition">Cancel</button>
+    <div id="admin-cowork" class="bg-white border border-gray-100 rounded-2xl overflow-hidden" style="min-height:480px;max-height:72vh;display:flex;flex-direction:column;">
+      <div class="cowork-header">
+        <div class="cowork-avatar">G</div>
+        <div>
+          <div class="cowork-name">Giftish Cowork</div>
+          <div class="cowork-sub">Store management agent</div>
+        </div>
+        <button type="button" onclick="window.adminAgentClearChat()" class="cowork-clear">Clear chat</button>
       </div>
-    </div>
-
-    <form id="admin-agent-form" class="flex gap-2" onsubmit="event.preventDefault();">
-      <input id="admin-agent-input" type="text" placeholder="e.g. show today's orders, or update order GYB-8436-4566 to shipped"
-        class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-        onkeydown="if(event.key==='Enter')window.adminAgentSend()">
-      <input type="file" id="admin-agent-img-input" accept="image/jpeg,image/png,image/webp" hidden>
-      <button type="button" id="admin-agent-img-btn" onclick="document.getElementById('admin-agent-img-input').click()"
-        class="shrink-0 w-11 h-11 rounded-xl border border-gray-200 bg-white hover:bg-cream2 transition flex items-center justify-center text-gray-400 hover:text-gray-600"
-        title="Attach an image">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-      </button>
-      <button type="button" onclick="window.adminAgentSend()" class="btn-primary px-6 rounded-xl text-sm font-medium">Send</button>
-    </form>
-    <div id="admin-agent-img-preview" class="hidden mt-2 flex items-center gap-2">
-      <img id="admin-agent-img-thumb" class="h-10 w-10 object-cover rounded-lg border border-gray-200">
-      <button type="button" onclick="window.adminAgentClearImage()" class="text-xs text-red-500 hover:text-red-700">Remove</button>
+      <div id="admin-agent-log" class="cowork-log"></div>
+      <div id="admin-agent-confirm" class="hidden" style="padding:.65rem .85rem;border-top:1px solid #FDE9CE;background:#FFF7ED;">
+        <p class="text-xs font-medium text-amber-800 mb-1.5" id="admin-agent-confirm-text"></p>
+        <div class="flex gap-2">
+          <button type="button" onclick="window.adminAgentConfirm()" class="px-3.5 py-1.5 bg-amber-800 text-white text-xs rounded-lg hover:bg-amber-900 transition">Confirm</button>
+          <button type="button" onclick="window.adminAgentDeny()" class="px-3.5 py-1.5 border border-amber-300 text-amber-800 text-xs rounded-lg hover:bg-amber-100 transition">Cancel</button>
+        </div>
+      </div>
+      <form id="admin-agent-form" class="hp-form" onsubmit="event.preventDefault();">
+        <div class="hp-input-row">
+          <input id="admin-agent-input" type="text" placeholder="e.g. show today's orders, or update order GYB-8436-4566 to shipped"
+            class="hp-input" onkeydown="if(event.key==='Enter')window.adminAgentSend()">
+          <input type="file" id="admin-agent-img-input" accept="image/jpeg,image/png,image/webp" hidden>
+          <button type="button" id="admin-agent-img-btn" onclick="document.getElementById('admin-agent-img-input').click()"
+            class="hp-img-btn" title="Attach an image">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+          </button>
+          <button type="button" onclick="window.adminAgentSend()" class="hp-send" aria-label="Send">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m22 2-7 20-4-9-9-4z"/></svg>
+          </button>
+        </div>
+      </form>
+      <div id="admin-agent-img-preview" class="hidden hp-img-row" style="padding:.5rem .85rem .65rem;">
+        <img id="admin-agent-img-thumb" class="h-9 w-9 object-cover rounded-lg border border-gray-200">
+        <button type="button" onclick="window.adminAgentClearImage()" class="text-xs text-red-500 hover:text-red-700">Remove</button>
+      </div>
     </div>
   </div>`;
 }
@@ -3869,39 +3951,106 @@ window.saveSiteSettings = async function(form){
   }
 };
 
-/* ---------------- Admin Agent (Helpish admin mode) ---------------- */
+/* ---------------- Admin Agent (Giftish Cowork) ---------------- */
 
-window.adminAgentMessages = [];
-window.adminAgentSummary = '';
-window.adminAgentBusy = false;
-window.adminAgentPendingConfirm = null;
-window.adminAgentPendingImage = null;
+// Each turn is a list of blocks. A block is one of:
+//   { type:'user',   text }
+//   { type:'assistant', text, thinking?, tools[] }
+//   { type:'tool_call',  id, name, label, args, result, error, startTime }
+//   { type:'note',   text }
+//   { type:'confirm_pending', summary }
 
-window.adminAgentSend = async function(){
-  if(window.adminAgentBusy) return;
-  const input = document.getElementById('admin-agent-input');
-  const text = input?.value?.trim();
-  if(!text && !window.adminAgentPendingImage) return;
-  input.value = '';
+window.coworkTurns = [];
+window.coworkCurrentTurn = null;   // assistant turn being streamed
+window.coworkThinkingOpen = false;
+window.coworkSummary = '';
+window.coworkBusy = false;
+window.coworkPendingConfirm = null;
+window.coworkPendingImage = null;
 
-  window.adminAgentBusy = true;
-  const displayText = text || (window.adminAgentPendingImage ? '[image attached]' : '');
-  window.adminAgentMessages.push({ role: 'user', content: displayText });
-  window.renderAdminAgentLog();
-
-  const history = window.adminAgentMessages
-    .filter(m => m.role === 'user' || m.role === 'assistant')
-    .slice(0, -1).slice(-24);
-
+window.coworkClearChat = function(){
+  window.coworkTurns = [];
+  window.coworkCurrentTurn = null;
+  window.coworkPendingConfirm = null;
   const log = document.getElementById('admin-agent-log');
+  if(log) log.innerHTML = '';
   const confirmBox = document.getElementById('admin-agent-confirm');
   if(confirmBox) confirmBox.classList.add('hidden');
-  window.adminAgentPendingConfirm = null;
+  window.adminAgentClearImage();
+};
+window.adminAgentClearChat = window.coworkClearChat;
+
+window.coworkScroll = function(){
+  const log = document.getElementById('admin-agent-log');
+  if(log) log.scrollTop = log.scrollHeight;
+};
+
+window.coworkToggleThinking = function(){
+  window.coworkThinkingOpen = !window.coworkThinkingOpen;
+  window.coworkRender();
+};
+
+window.coworkToggleTool = function(id){
+  const el = document.getElementById('tc-' + id);
+  if(el) el.classList.toggle('open');
+};
+
+// ---- helpers ----
+
+function fmtTime(ms){
+  if(!ms) return '';
+  const s = (ms / 1000).toFixed(1);
+  return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+}
+
+function toolLabel(name){
+  const map = {
+    search_orders:'Searching orders', lookup_order:'Looking up order',
+    get_today_orders:"Fetching today's orders", get_sales_summary:'Calculating sales',
+    get_low_stock_products:'Checking stock', update_order_status:'Updating status',
+    cancel_order:'Cancelling order', update_inventory:'Updating inventory',
+    create_product:'Creating product', update_product:'Updating product',
+    create_discount:'Creating discount', delete_discount:'Deleting discount',
+    update_store_setting:'Updating setting',
+  };
+  return map[name] || name.replace(/_/g, ' ');
+}
+
+function escHtml(s){ return escapeHtml(String(s ?? '')); }
+
+// ---- SSE handler ----
+
+window.adminAgentSend = async function(){
+  if(window.coworkBusy) return;
+  const input = document.getElementById('admin-agent-input');
+  const text = input?.value?.trim();
+  if(!text && !window.coworkPendingImage) return;
+  input.value = '';
+
+  window.coworkBusy = true;
+  const displayText = text || (window.coworkPendingImage ? '[image attached]' : '');
+
+  // user block
+  const userTurn = { type:'user', text: displayText };
+  window.coworkTurns.push(userTurn);
+
+  // start assistant turn
+  window.coworkCurrentTurn = { type:'assistant', text:'', thinking:'', tools:[] };
+  window.coworkThinkingOpen = false;
+  window.coworkRender();
+
+  const history = window.coworkTurns
+    .filter(m => m.type === 'user' || m.type === 'assistant')
+    .slice(0, -1).slice(-24);
+
+  const confirmBox = document.getElementById('admin-agent-confirm');
+  if(confirmBox) confirmBox.classList.add('hidden');
+  window.coworkPendingConfirm = null;
 
   let images = [];
-  if(window.adminAgentPendingImage){
-    images = [window.adminAgentPendingImage];
-    window.adminAgentPendingImage = null;
+  if(window.coworkPendingImage){
+    images = [window.coworkPendingImage];
+    window.coworkPendingImage = null;
     const preview = document.getElementById('admin-agent-img-preview');
     if(preview) preview.classList.add('hidden');
   }
@@ -3911,14 +4060,11 @@ window.adminAgentSend = async function(){
       mode: 'admin_chat',
       message: text,
       history,
-      summary: window.adminAgentSummary,
+      summary: window.coworkSummary,
       idToken: await State.user?.getIdToken?.().catch(() => '') || '',
     };
     if(images.length) bodyPayload.images = images;
 
-    // HELPISH_ENDPOINT is declared further down the module but this only runs on a
-    // click, long after evaluation — so the admin agent follows the same backend
-    // origin as the customer chat instead of assuming same-origin.
     const res = await fetch(HELPISH_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3930,8 +4076,6 @@ window.adminAgentSend = async function(){
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let acc = '';
-    let bubble = null;
     const startTime = Date.now();
 
     while(true){
@@ -3948,71 +4092,94 @@ window.adminAgentSend = async function(){
         try { ev = JSON.parse(trimmed.slice(5).trim()); } catch { continue; }
 
         switch(ev.type){
-          case 'text':
-            acc += ev.delta;
-            if(!bubble){
-              bubble = document.createElement('div');
-              bubble.className = 'hp-msg bot';
-              log.appendChild(bubble);
+          case 'text': {
+            if(window.coworkCurrentTurn) window.coworkCurrentTurn.text += ev.delta;
+            window.coworkRender();
+            break;
+          }
+          case 'thinking': {
+            if(window.coworkCurrentTurn) window.coworkCurrentTurn.thinking += ev.delta;
+            window.coworkThinkingOpen = true;
+            window.coworkRender();
+            break;
+          }
+          case 'tool_call': {
+            // start a tool block inside the current assistant turn
+            if(window.coworkCurrentTurn){
+              window.coworkCurrentTurn.tools.push({
+                id: ev.id, name: ev.name, label: ev.label || toolLabel(ev.name),
+                args: ev.args || '', result: null, error: false,
+                startTime: Date.now(), done: false,
+              });
             }
-            bubble.innerHTML = window.linkifyAdminMsg(acc);
-            log.scrollTop = log.scrollHeight;
+            window.coworkRender();
             break;
-          case 'status':
-            window.setAdminAgentStatus(ev.elapsed ? formatElapsed(ev.elapsed) : 'Working...');
+          }
+          case 'tool_result': {
+            if(window.coworkCurrentTurn){
+              const t = window.coworkCurrentTurn.tools.find(x => x.id === ev.id);
+              if(t){ t.result = ev.result; t.error = !!ev.error; t.done = true; }
+            }
+            window.coworkRender();
             break;
-          case 'timer':
-            window.setAdminAgentStatus('Working... ' + formatElapsed(ev.elapsed));
+          }
+          case 'timer': {
+            // live timer shown in the header area — skip for now, elapsed shown on tool cards
             break;
-          case 'confirm':
-            window.adminAgentPendingConfirm = { tool: ev.tool, args: ev.args };
+          }
+          case 'confirm': {
+            window.coworkPendingConfirm = { tool: ev.tool, args: ev.args };
             if(confirmBox){
               document.getElementById('admin-agent-confirm-text').textContent = ev.preview;
               confirmBox.classList.remove('hidden');
             }
             break;
-          case 'awaiting_confirm':
-            // nothing extra — done event will follow
+          }
+          case 'done': {
+            if(typeof ev.summary === 'string') window.coworkSummary = ev.summary;
+            // finalize assistant turn
+            if(window.coworkCurrentTurn){
+              const turn = window.coworkCurrentTurn;
+              if(!turn.text && !turn.tools.length) turn.text = '(no response)';
+              window.coworkCurrentTurn = null;
+            }
+            window.coworkRender();
             break;
-          case 'done':
-            if(typeof ev.summary === 'string') window.adminAgentSummary = ev.summary;
+          }
+          case 'error': {
+            window.coworkTurns.push({ type:'note', text: ev.message });
+            window.coworkRender();
             break;
-          case 'error':
-            window.adminAgentMessages.push({ role: 'note', content: ev.message });
-            break;
+          }
         }
       }
     }
-
-    if(acc.trim()){
-      window.adminAgentMessages.push({ role: 'assistant', content: acc.trim() });
-    }
-    window.renderAdminAgentLog();
   }catch(err){
-    window.adminAgentMessages.push({ role: 'note', content: 'Could not reach the server. Check your connection and try again.' });
-    window.renderAdminAgentLog();
+    window.coworkTurns.push({ type:'note', text: 'Could not reach the server. Check your connection and try again.' });
+    window.coworkRender();
   }
 
-  window.adminAgentBusy = false;
-  window.setAdminAgentStatus('');
+  window.coworkBusy = false;
 };
 
+// ---- confirm flow ----
+
 window.adminAgentConfirm = async function(){
-  const pending = window.adminAgentPendingConfirm;
+  const pending = window.coworkPendingConfirm;
   if(!pending) return;
   const confirmBox = document.getElementById('admin-agent-confirm');
   if(confirmBox) confirmBox.classList.add('hidden');
-  window.adminAgentPendingConfirm = null;
+  window.coworkPendingConfirm = null;
 
-  window.adminAgentMessages.push({ role: 'user', content: 'yes' });
-  window.renderAdminAgentLog();
-  window.adminAgentBusy = true;
+  const confirmTurn = { type:'user', text:'yes' };
+  window.coworkTurns.push(confirmTurn);
+  window.coworkCurrentTurn = { type:'assistant', text:'', thinking:'', tools:[] };
+  window.coworkThinkingOpen = false;
+  window.coworkRender();
 
-  const history = window.adminAgentMessages
-    .filter(m => m.role === 'user' || m.role === 'assistant')
+  const history = window.coworkTurns
+    .filter(m => m.type === 'user' || m.type === 'assistant')
     .slice(-24);
-
-  const log = document.getElementById('admin-agent-log');
 
   try{
     const res = await fetch(HELPISH_ENDPOINT, {
@@ -4022,7 +4189,7 @@ window.adminAgentConfirm = async function(){
         mode: 'admin_confirm',
         message: 'yes',
         history,
-        summary: window.adminAgentSummary,
+        summary: window.coworkSummary,
         idToken: await State.user?.getIdToken?.().catch(() => '') || '',
       }),
     });
@@ -4032,8 +4199,6 @@ window.adminAgentConfirm = async function(){
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let acc = '';
-    let bubble = null;
 
     while(true){
       const { value, done } = await reader.read();
@@ -4048,49 +4213,61 @@ window.adminAgentConfirm = async function(){
         let ev;
         try { ev = JSON.parse(trimmed.slice(5).trim()); } catch { continue; }
 
-        if(ev.type === 'text'){
-          acc += ev.delta;
-          if(!bubble){
-            bubble = document.createElement('div');
-            bubble.className = 'hp-msg bot';
-            log.appendChild(bubble);
-          }
-          bubble.innerHTML = window.linkifyAdminMsg(acc);
-          log.scrollTop = log.scrollHeight;
-        }else if(ev.type === 'done'){
-          if(typeof ev.summary === 'string') window.adminAgentSummary = ev.summary;
-        }else if(ev.type === 'error'){
-          window.adminAgentMessages.push({ role: 'note', content: ev.message });
+        switch(ev.type){
+          case 'text':
+            if(window.coworkCurrentTurn) window.coworkCurrentTurn.text += ev.delta;
+            window.coworkRender();
+            break;
+          case 'tool_call':
+            if(window.coworkCurrentTurn){
+              window.coworkCurrentTurn.tools.push({
+                id: ev.id, name: ev.name, label: ev.label || toolLabel(ev.name),
+                args: ev.args || '', result: null, error: false,
+                startTime: Date.now(), done: false,
+              });
+            }
+            window.coworkRender();
+            break;
+          case 'tool_result':
+            if(window.coworkCurrentTurn){
+              const t = window.coworkCurrentTurn.tools.find(x => x.id === ev.id);
+              if(t){ t.result = ev.result; t.error = !!ev.error; t.done = true; }
+            }
+            window.coworkRender();
+            break;
+          case 'done':
+            if(typeof ev.summary === 'string') window.coworkSummary = ev.summary;
+            if(window.coworkCurrentTurn){
+              const turn = window.coworkCurrentTurn;
+              if(!turn.text && !turn.tools.length) turn.text = '(done)';
+              window.coworkCurrentTurn = null;
+            }
+            window.coworkRender();
+            break;
+          case 'error':
+            window.coworkTurns.push({ type:'note', text: ev.message });
+            window.coworkRender();
+            break;
         }
       }
     }
-
-    if(acc.trim()) window.adminAgentMessages.push({ role: 'assistant', content: acc.trim() });
-    window.renderAdminAgentLog();
   }catch(err){
-    window.adminAgentMessages.push({ role: 'note', content: 'Could not reach the server.' });
-    window.renderAdminAgentLog();
+    window.coworkTurns.push({ type:'note', text: 'Could not reach the server.' });
+    window.coworkRender();
   }
 
-  window.adminAgentBusy = false;
-  window.setAdminAgentStatus('');
+  window.coworkBusy = false;
 };
 
 window.adminAgentDeny = function(){
   const confirmBox = document.getElementById('admin-agent-confirm');
   if(confirmBox) confirmBox.classList.add('hidden');
-  window.adminAgentPendingConfirm = null;
-  window.adminAgentMessages.push({ role: 'user', content: 'Cancelled.' });
-  window.renderAdminAgentLog();
+  window.coworkPendingConfirm = null;
+  window.coworkTurns.push({ type:'user', text:'Cancelled.' });
+  window.coworkRender();
 };
 
-window.adminAgentClearImage = function(){
-  const input = document.getElementById('admin-agent-img-input');
-  const preview = document.getElementById('admin-agent-img-preview');
-  if(input) input.value = '';
-  if(preview) preview.classList.add('hidden');
-  window.adminAgentPendingImage = null;
-};
+window.adminAgentClearImage = window.coworkClearImage;
 
 // Admin agent image upload handler (initialized when admin agent panel renders)
 window.initAdminAgentImage = function(){
@@ -4102,7 +4279,7 @@ window.initAdminAgentImage = function(){
     if(!file) return;
     try{
       const result = await resizeImage(file, 1024);
-      window.adminAgentPendingImage = 'data:' + result.type + ';base64,' + result.data;
+      window.coworkPendingImage = 'data:' + result.type + ';base64,' + result.data;
       const thumb = document.getElementById('admin-agent-img-thumb');
       const preview = document.getElementById('admin-agent-img-preview');
       if(thumb && result.data){
@@ -4110,37 +4287,82 @@ window.initAdminAgentImage = function(){
         if(preview) preview.classList.remove('hidden');
       }
     }catch{
-      window.adminAgentMessages.push({ role: 'note', content: 'Could not read that image. Try a different file.' });
-      window.renderAdminAgentLog();
+      window.coworkTurns.push({ type:'note', text: 'Could not read that image. Try a different file.' });
+      window.coworkRender();
     }
   });
 };
 
-window.renderAdminAgentLog = function(){
+// ---- Cowork block renderer ----
+
+window.coworkRender = function(){
   const log = document.getElementById('admin-agent-log');
   if(!log) return;
-  log.innerHTML = window.adminAgentMessages.map((m, i) => {
-    if(m.role === 'note'){
-      return '<div class="hp-msg note" style="color:#8a7f74;font-size:.8rem">' + escapeHtml(m.content) + '</div>';
-    }
-    const cls = m.role === 'user' ? 'me' : 'bot';
-    const content = m.role === 'user' ? escapeHtml(m.content) : (window.linkifyAdminMsg(m.content) || '');
-    return '<div class="hp-msg ' + cls + '">' + content + '</div>';
-  }).join('');
-  log.scrollTop = log.scrollHeight;
-};
+  const blocks = [];
+  const allTurns = [...window.coworkTurns];
+  if(window.coworkCurrentTurn) allTurns.push(window.coworkCurrentTurn);
 
-window.setAdminAgentStatus = function(text){
-  let el = document.getElementById('admin-agent-status');
-  if(!text){ if(el) el.remove(); return; }
-  if(!el){
-    el = document.createElement('div');
-    el.className = 'hp-status';
-    el.id = 'admin-agent-status';
-    const log = document.getElementById('admin-agent-log');
-    if(log) log.appendChild(el);
+  for(const turn of allTurns){
+    switch(turn.type){
+      case 'user':
+        blocks.push('<div class="cowork-block me"><div class="cowork-bubble">' + escHtml(turn.text) + '</div></div>');
+        break;
+
+      case 'assistant': {
+        // thinking block
+        if(turn.thinking){
+          const isOpen = window.coworkThinkingOpen ? ' open' : '';
+          const body = escHtml(turn.thinking);
+          blocks.push(
+            '<div class="cowork-block bot">' +
+              '<div class="cowork-thinking' + isOpen + '">' +
+                '<div class="cowork-thinking-hdr" onclick="window.coworkToggleThinking()">' +
+                  '<span class="cowork-thinking-chevron">&#9654;</span> Thinking' +
+                  (turn.thinking ? '' : '<span class="cowork-thinking-dots"><i></i><i></i><i></i></span>') +
+                '</div>' +
+                '<div class="cowork-thinking-body">' + body + '</div>' +
+              '</div>' +
+            '</div>'
+          );
+        }
+        // tool call cards
+        for(const tool of turn.tools){
+          const elapsed = tool.done ? fmtTime((tool.endTime || Date.now()) - tool.startTime) : '';
+          const bodyContent = (tool.error
+            ? '<span class="cowork-toolcard-err">Error: ' + escHtml(tool.result) + '</span>'
+            : escHtml(tool.result));
+          blocks.push(
+            '<div class="cowork-block bot">' +
+              '<div class="cowork-toolcard" id="tc-' + escHtml(tool.id) + '">' +
+                '<div class="cowork-toolcard-hdr" onclick="window.coworkToggleTool(\'' + escHtml(tool.id) + '\')">' +
+                  '<span class="cowork-toolcard-icon">&#9881;</span>' +
+                  '<span class="cowork-toolcard-name">' + escHtml(tool.label) + '</span>' +
+                  (elapsed ? '<span class="cowork-toolcard-time">' + elapsed + '</span>' : '') +
+                  '<span class="cowork-toolcard-chevron" style="margin-left:.3rem;">&#9654;</span>' +
+                '</div>' +
+                '<div class="cowork-toolcard-body">' +
+                  '<div style="font-size:.68rem;color:#8a7f74;margin-bottom:.3rem;">Args: ' + escHtml(tool.args) + '</div>' +
+                  bodyContent +
+                '</div>' +
+              '</div>' +
+            '</div>'
+          );
+        }
+        // text bubble
+        if(turn.text){
+          blocks.push('<div class="cowork-block bot"><div class="cowork-bubble">' + window.linkifyAdminMsg(turn.text) + '</div></div>');
+        }
+        break;
+      }
+
+      case 'note':
+        blocks.push('<div class="cowork-note">' + escHtml(turn.text) + '</div>');
+        break;
+    }
   }
-  el.innerHTML = '<i></i><i></i><i></i><span>' + escapeHtml(text) + '</span>';
+
+  log.innerHTML = blocks.join('');
+  window.coworkScroll();
 };
 
 window.linkifyAdminMsg = function(text){

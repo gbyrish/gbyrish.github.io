@@ -10,6 +10,8 @@
 //   { type: 'done', summary }   turn finished
 //   { type: 'error', message }  customer-safe sentence, never a provider message
 //   { type: 'draft', draft }    admin_draft mode only
+//   { type: 'tool_call', id, name, args, preview }   a tool invocation started
+//   { type: 'tool_result', id, name, result }         tool finished (success or error)
 //
 //   { mode: 'admin_chat',   message, history[], summary, idToken }     -> admin only
 //   { mode: 'admin_confirm', message, history[], summary, idToken }    -> admin only (confirms write)
@@ -256,6 +258,18 @@ async function runAdminAgentTurn({ stream, messages, ctx, isConfirmRound = false
         tool_calls: toolCalls.map(tc => ({ id: tc.id, type: 'function', function: tc.function })),
       });
 
+      // Emit structured events so the frontend can render Cowork-style blocks
+      // instead of dumping everything into one text bubble.
+      for(const tc of toolCalls){
+        stream.send({
+          type: 'tool_call',
+          id: tc.id,
+          name: tc.function?.name || '',
+          args: typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || {}),
+          label: ADMIN_TOOL_LABELS[tc.function?.name] || tc.function?.name || '',
+        });
+      }
+
       // Check if any tool call needs confirmation (write tool without confirmToken).
       for(const tc of toolCalls){
         let args = {};
@@ -288,6 +302,13 @@ async function runAdminAgentTurn({ stream, messages, ctx, isConfirmRound = false
 
       for(const r of results){
         messages.push({ role: 'tool', tool_call_id: r.id, name: r.name, content: JSON.stringify(r.result).slice(0, 12000) });
+        stream.send({
+          type: 'tool_result',
+          id: r.id,
+          name: r.name,
+          result: JSON.stringify(r.result).slice(0, 2000),
+          error: r.result?.error ? true : false,
+        });
       }
       stream.send({ type: 'status', label: '' });
     }
