@@ -49,14 +49,55 @@ const friendlyFor = (err) => FRIENDLY[err?.kind] || FRIENDLY.unknown;
 // _lib/persona.js. That is the file to edit when tuning how it behaves.
 
 
+/* ---------------- CORS ---------------- */
+
+// The site can be served from GitHub Pages while this function runs on Vercel, so
+// every response needs CORS headers, not just the preflight.
+//
+// Deliberately an allow-list rather than `*`: this endpoint spends real model
+// credits and accepts a Firebase ID token in the body, so any origin being able to
+// call it means any site can burn the store's budget. Add origins with
+// HELPISH_ALLOWED_ORIGINS (comma separated) when a new front end appears.
+const DEFAULT_ORIGINS = [
+  'https://gbyrish.github.io',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+];
+
+function allowedOrigins(){
+  const extra = String(process.env.HELPISH_ALLOWED_ORIGINS || '')
+    .split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean);
+  return new Set([...DEFAULT_ORIGINS, ...extra]);
+}
+
+// Returns the headers to echo back, or {} when the origin isn't allowed — in which
+// case the browser blocks the response and the request never reaches the model.
+function corsHeaders(req){
+  const origin = String(req.headers?.origin || '').replace(/\/+$/, '');
+  if(!origin) return {};                       // same-origin or a non-browser caller
+  if(!allowedOrigins().has(origin)) return {};
+  return {
+    'Access-Control-Allow-Origin': origin,     // echoed, never '*', so Vary is honest
+    'Vary': 'Origin',
+  };
+}
+
+// Every JSON reply goes through here so no error path forgets its CORS headers —
+// a 403 without them shows the browser a CORS failure instead of the real reason.
+function sendJson(req, res, status, payload){
+  res.writeHead(status, { 'Content-Type': 'application/json', ...corsHeaders(req) });
+  res.end(JSON.stringify(payload));
+}
+
 /* ---------------- SSE plumbing ---------------- */
 
-function openStream(res){
+function openStream(res, req){
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no',
+    ...corsHeaders(req),
   });
   let closed = false;
   return {
@@ -277,12 +318,22 @@ function summarizeWrite(name, args){
 
 export default async function handler(req, res){
   if(req.method === 'OPTIONS'){
-    res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' });
+    // corsHeaders() returns {} for an origin that is not on the allow-list, so a
+    // disallowed caller gets a 204 with no Allow-Origin and the browser blocks it.
+    const cors = corsHeaders(req);
+    res.writeHead(204, {
+      ...cors,
+      ...(cors['Access-Control-Allow-Origin'] ? {
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Max-Age': '86400',
+      } : {}),
+    });
     return res.end();
   }
   if(req.method !== 'POST'){
-    res.writeHead(405, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Use POST.' }));
+    sendJson(req, res, 405, { error: 'Use POST.' });
+    return;
   }
 
   const body = await readBody(req);
@@ -301,7 +352,7 @@ export default async function handler(req, res){
   if(!process.env.HELPISH_MOCK && (mode === 'admin_draft' || mode === 'admin_chat' || mode === 'admin_confirm')){
     const admin = user ? await isAdmin(user, idToken) : false;
     if(!admin){
-      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders(req) });
       return res.end(JSON.stringify({ error: 'This feature is only available to store admins.' }));
     }
   }
@@ -309,7 +360,7 @@ export default async function handler(req, res){
   /* --- Admin product drafting: gated, non-streaming, returns a draft only --- */
   if(mode === 'admin_draft'){
     if(!message){
-      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.writeHead(400, { 'Content-Type': 'application/json', ...corsHeaders(req) });
       return res.end(JSON.stringify({ error: 'Describe the product first.' }));
     }
     try{
@@ -324,21 +375,21 @@ export default async function handler(req, res){
       const raw = data?.choices?.[0]?.message?.content || '';
       const draft = parseDraft(raw);
       if(!draft){
-        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
         return res.end(JSON.stringify({ error: 'I could not turn that into product fields. Try describing the product in a sentence or two.' }));
       }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders(req) });
       return res.end(JSON.stringify({ draft, model: modelName() }));
     }catch(err){
       const status = err instanceof ProviderError && err.kind === 'rate_limit' ? 429 : 502;
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', ...corsHeaders(req) });
       return res.end(JSON.stringify({ error: friendlyFor(err) }));
     }
   }
 
   /* --- Admin agent: SSE streaming with tool calls and confirmation --- */
   if(mode === 'admin_chat' || mode === 'admin_confirm'){
-    const stream = openStream(res);
+    const stream = openStream(res, req);
     req.on?.('close', () => stream.end());
 
     if(!message){
@@ -383,7 +434,7 @@ export default async function handler(req, res){
   }
 
   /* --- Customer chat --- */
-  const stream = openStream(res);
+  const stream = openStream(res, req);
   req.on?.('close', () => stream.end());
 
   if(!message){

@@ -3916,7 +3916,10 @@ window.adminAgentSend = async function(){
     };
     if(images.length) bodyPayload.images = images;
 
-    const res = await fetch('/api/helpish', {
+    // HELPISH_ENDPOINT is declared further down the module but this only runs on a
+    // click, long after evaluation — so the admin agent follows the same backend
+    // origin as the customer chat instead of assuming same-origin.
+    const res = await fetch(HELPISH_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bodyPayload),
@@ -4012,7 +4015,7 @@ window.adminAgentConfirm = async function(){
   const log = document.getElementById('admin-agent-log');
 
   try{
-    const res = await fetch('/api/helpish', {
+    const res = await fetch(HELPISH_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -5284,7 +5287,20 @@ window.addEventListener('keydown', (e) => {
    All model access goes through /api/helpish. No API key exists in this file,
    and the browser never learns which provider or model is in use. */
 
-const HELPISH_ENDPOINT = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? '/api/helpish' : '/api/helpish';
+/* Where the Helpish backend lives.
+
+   GitHub Pages is static hosting — it cannot execute api/helpish.js at all, so a
+   site served from gbyrish.github.io has to call a deployed copy of the API on a
+   host that runs functions (Vercel). Put that deployment's origin here, with no
+   trailing path:
+
+     const HELPISH_API_ORIGIN = 'https://gbyrish.vercel.app';
+
+   Leave it empty on any host that serves the API itself — localhost, or an
+   all-Vercel deploy — and the same-origin path is used. This is the only line
+   that changes when the backend moves; the API key still never touches this file. */
+const HELPISH_API_ORIGIN = '';
+const HELPISH_ENDPOINT = HELPISH_API_ORIGIN.replace(/\/+$/, '') + '/api/helpish';
 const HELPISH_STORE_KEY = 'gbyrish_helpish_chat';
 
 const Helpish = {
