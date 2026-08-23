@@ -303,6 +303,14 @@ tailwind.config = {
   .hp-status i:nth-child(3){ animation-delay:.36s; }
   @keyframes hpDot { 0%,100%{ opacity:.25; transform:translateY(0); } 50%{ opacity:1; transform:translateY(-2px); } }
 
+  /* Customer chat turn: hosts the shared Cowork thinking/tool-card blocks so the
+     customer widget shows what Helpish looked up, matching the admin agent. */
+  .hp-turn { display:flex; flex-direction:column; gap:.45rem; align-self:flex-start;
+    max-width:88%; width:100%; animation:hpIn .26s cubic-bezier(.22,.9,.3,1) both; }
+  .hp-turn .hp-msg { max-width:100%; animation:none; }
+  .hp-turn .cowork-thinking, .hp-turn .cowork-toolcard { width:100%; }
+  .hp-noanim, .hp-noanim .hp-msg { animation:none !important; }
+
   /* ===== Giftish Cowork — admin agent block UI ===== */
   .cowork-header { display:flex; align-items:center; gap:.6rem; padding:.65rem .85rem;
     border-bottom:1px solid #E8DFD5; }
@@ -5808,6 +5816,47 @@ const Helpish = {
     return window.renderRichText(text);
   },
 
+  // Build the Cowork-style HTML for one assistant turn: a collapsible thinking
+  // block, an expandable card per tool the model called, then the reply bubble.
+  // Mirrors the admin agent's coworkRender so the customer chat shows the same
+  // "here's what I looked up" surface. `key` scopes the element ids/toggles so
+  // customer cards never collide with the admin panel's.
+  turnHTML(turn, key){
+    let html = '';
+    if(turn.thinking){
+      const open = turn.thinkingOpen ? ' open' : '';
+      html +=
+        '<div class="cowork-thinking' + open + '" id="hpth-' + key + '">' +
+          '<div class="cowork-thinking-hdr" onclick="window.helpishToggleThinking(\'' + key + '\')">' +
+            '<span class="cowork-thinking-chevron">&#9654;</span> Thinking' +
+          '</div>' +
+          '<div class="cowork-thinking-body">' + escapeHtml(turn.thinking) + '</div>' +
+        '</div>';
+    }
+    for(const tool of (turn.tools || [])){
+      const elapsed = tool.done ? fmtTime((tool.endTime || Date.now()) - tool.startTime) : '';
+      const id = key + '-' + tool.id;
+      const body = tool.error
+        ? '<span class="cowork-toolcard-err">Error: ' + escHtml(tool.result) + '</span>'
+        : escHtml(tool.result);
+      html +=
+        '<div class="cowork-toolcard" id="hptc-' + escHtml(id) + '">' +
+          '<div class="cowork-toolcard-hdr" onclick="window.helpishToggleTool(\'' + escHtml(id) + '\')">' +
+            '<span class="cowork-toolcard-icon">&#9881;</span>' +
+            '<span class="cowork-toolcard-name">' + escHtml(tool.label) + '</span>' +
+            (elapsed ? '<span class="cowork-toolcard-time">' + elapsed + '</span>' : '') +
+            '<span class="cowork-toolcard-chevron" style="margin-left:.3rem;">&#9654;</span>' +
+          '</div>' +
+          '<div class="cowork-toolcard-body">' +
+            (tool.args && tool.args !== '{}' ? '<div style="font-size:.68rem;color:#8a7f74;margin-bottom:.3rem;">Args: ' + escHtml(tool.args) + '</div>' : '') +
+            body +
+          '</div>' +
+        '</div>';
+    }
+    if(turn.text) html += '<div class="hp-msg bot">' + this.linkify(turn.text) + '</div>';
+    return html;
+  },
+
   renderLog(){
     const log = document.getElementById('helpish-log');
     if(!log) return;
@@ -5816,8 +5865,14 @@ const Helpish = {
         const retry = m.retryable ? ` <button class="hp-chip" style="margin-left:.4rem;padding:.15rem .55rem" onclick="window.helpishRetry()">Try again</button>` : '';
         return `<div class="hp-msg note">${escapeHtml(m.content)}${retry}</div>`;
       }
-      const cls = m.role === 'user' ? 'me' : 'bot';
-      return `<div class="hp-msg ${cls}" data-i="${i}">${this.linkify(m.content)}</div>`;
+      if(m.role === 'user'){
+        return `<div class="hp-msg me" data-i="${i}">${this.linkify(m.content)}</div>`;
+      }
+      // assistant: may carry thinking + tool cards alongside the reply text.
+      if((m.thinking && m.thinking.length) || (m.tools && m.tools.length)){
+        return `<div class="hp-turn hp-noanim" data-i="${i}">${this.turnHTML({ text: m.content, thinking: m.thinking, tools: m.tools, thinkingOpen: false }, 'log' + i)}</div>`;
+      }
+      return `<div class="hp-msg bot" data-i="${i}">${this.linkify(m.content)}</div>`;
     }).join('');
     this.scrollLog();
   },
@@ -5952,16 +6007,23 @@ const Helpish = {
       .slice(0, -1)                       // the new message is sent separately
       .slice(-24);
 
-    let bubble = null;
-    let acc = '';
-    const ensureBubble = () => {
-      if(bubble) return bubble;
+    // Live assistant turn: accumulates thinking + tool cards + reply text and
+    // renders the same Cowork-style blocks the admin agent uses.
+    const live = { text: '', thinking: '', tools: [], thinkingOpen: false };
+    this.liveTurn = live;
+    let container = null;
+    const ensureContainer = () => {
+      if(container) return container;
       this.setStatus('');
       const log = document.getElementById('helpish-log');
-      bubble = document.createElement('div');
-      bubble.className = 'hp-msg bot';
-      log.appendChild(bubble);
-      return bubble;
+      container = document.createElement('div');
+      container.className = 'hp-turn';
+      log.appendChild(container);
+      return container;
+    };
+    const renderLive = () => {
+      ensureContainer().innerHTML = this.turnHTML(live, 'live');
+      this.scrollLog();
     };
 
     try{
@@ -6002,11 +6064,28 @@ const Helpish = {
           try { ev = JSON.parse(trimmed.slice(5).trim()); } catch { continue; }
 
           if(ev.type === 'status'){
-            if(!acc) this.setStatus(ev.label || 'Thinking');
+            if(!live.text && !live.tools.length) this.setStatus(ev.label || 'Thinking');
+          }else if(ev.type === 'thinking'){
+            live.thinking += ev.delta || '';
+            live.thinkingOpen = true;
+            renderLive();
           }else if(ev.type === 'text'){
-            acc += ev.delta;
-            ensureBubble().innerHTML = this.linkify(acc);
-            this.scrollLog();
+            live.text += ev.delta;
+            renderLive();
+          }else if(ev.type === 'tool_call'){
+            // Any reply text streamed before a tool call is the model's reasoning
+            // — fold it into the thinking block so the bubble stays the answer.
+            if(live.text && !live.thinking){ live.thinking = live.text; live.text = ''; }
+            live.tools.push({
+              id: ev.id, name: ev.name, label: ev.label || toolLabel(ev.name),
+              args: ev.args || '', result: null, error: false,
+              startTime: Date.now(), done: false,
+            });
+            renderLive();
+          }else if(ev.type === 'tool_result'){
+            const t = live.tools.find(x => x.id === ev.id);
+            if(t){ t.result = ev.result; t.error = !!ev.error; t.done = true; t.endTime = Date.now(); }
+            renderLive();
           }else if(ev.type === 'done'){
             if(typeof ev.summary === 'string') this.summary = ev.summary;
           }else if(ev.type === 'error'){
@@ -6016,11 +6095,22 @@ const Helpish = {
       }
 
       this.setStatus('');
+      for(const t of live.tools){ if(!t.done){ t.done = true; t.endTime = Date.now(); } }
 
-      if(acc.trim()){
-        // A reply that arrived, even partially, is kept.
-        this.messages.push({ role: 'assistant', content: acc.trim() });
-        if(bubble) bubble.remove();
+      if(live.text.trim() || live.tools.length){
+        // A reply that arrived, even partially, is kept — along with the thinking
+        // and tool cards so they persist and re-render from history.
+        this.messages.push({
+          role: 'assistant',
+          content: live.text.trim(),
+          thinking: live.thinking || '',
+          tools: live.tools.length ? live.tools.map(t => ({
+            id: t.id, name: t.name, label: t.label, args: t.args,
+            result: t.result, error: t.error, done: true,
+            startTime: t.startTime, endTime: t.endTime,
+          })) : undefined,
+        });
+        if(container) container.remove();
         this.renderLog();
       }
       if(failed){
@@ -6028,7 +6118,7 @@ const Helpish = {
         this.messages.push({ role: 'note', content: failed, retryable: true });
         this.renderLog();
       }
-      if(!acc.trim() && !failed){
+      if(!live.text.trim() && !live.tools.length && !failed){
         this.messages.push({ role: 'note', content: 'I did not manage to reply just then. Try sending that again.', retryable: true });
         this.lastFailedSend = text;
         this.renderLog();
@@ -6037,7 +6127,7 @@ const Helpish = {
       // Network-level failure, or the helper is not deployed on this host. The
       // customer's conversation is untouched — only this reply is missing.
       this.setStatus('');
-      if(bubble) bubble.remove();
+      if(container) container.remove();
       this.lastFailedSend = text;
       this.messages.push({
         role: 'note',
@@ -6047,6 +6137,7 @@ const Helpish = {
       this.renderLog();
     }
 
+    this.liveTurn = null;
     this.save();
     this.setBusy(false);
   },
@@ -6068,6 +6159,26 @@ window.helpishAsk = function(text){
 };
 window.helpishRetry = function(){ Helpish.retry(); };
 window.helpishRemoveImage = function(){ Helpish.removeImage(); };
+// Toggle a customer-chat tool card / thinking block. Tool cards toggle a class
+// like the admin panel; the live thinking block re-renders since it has no
+// stable element while streaming, so we flip a flag and repaint.
+window.helpishToggleTool = function(id){
+  const el = document.getElementById('hptc-' + id);
+  if(el) el.classList.toggle('open');
+};
+window.helpishToggleThinking = function(key){
+  if(key === 'live'){
+    if(Helpish.liveTurn){
+      Helpish.liveTurn.thinkingOpen = !Helpish.liveTurn.thinkingOpen;
+      const c = document.querySelector('#helpish-log .hp-turn:last-child');
+      if(c) c.innerHTML = Helpish.turnHTML(Helpish.liveTurn, 'live');
+    }
+    return;
+  }
+  // History turns: the thinking block lives in the DOM under a stable id.
+  const el = document.getElementById('hpth-' + key);
+  if(el) el.classList.toggle('open');
+};
 window.helpishFollowLink = function(){
   // On mobile the panel covers the page, so tapping a product link should reveal it.
   if(window.matchMedia('(max-width:767px)').matches) Helpish.close();

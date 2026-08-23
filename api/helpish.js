@@ -177,6 +177,18 @@ async function runChatTurn({ stream, messages, ctx }){
     const labels = [...new Set(toolCalls.map(tc => TOOL_LABELS[tc.function?.name]).filter(Boolean))];
     if(labels.length) stream.send({ type: 'status', label: labels.join(' · ') });
 
+    // Emit structured events so the customer chat can render Cowork-style tool
+    // cards (a labelled, expandable card per lookup) instead of a bare spinner.
+    for(const tc of toolCalls){
+      stream.send({
+        type: 'tool_call',
+        id: tc.id,
+        name: tc.function?.name || '',
+        args: typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || {}),
+        label: TOOL_LABELS[tc.function?.name] || tc.function?.name || '',
+      });
+    }
+
     const results = await Promise.all(toolCalls.map(async (tc) => ({
       id: tc.id,
       name: tc.function?.name || '',
@@ -185,6 +197,13 @@ async function runChatTurn({ stream, messages, ctx }){
 
     for(const r of results){
       messages.push({ role: 'tool', tool_call_id: r.id, name: r.name, content: JSON.stringify(r.result).slice(0, 12000) });
+      stream.send({
+        type: 'tool_result',
+        id: r.id,
+        name: r.name,
+        result: JSON.stringify(r.result).slice(0, 2000),
+        error: r.result?.error ? true : false,
+      });
     }
     stream.send({ type: 'status', label: '' });
   }
