@@ -10,3 +10,4 @@ _*.py
 
 node_modules/
 .vercel/
+.env.local
