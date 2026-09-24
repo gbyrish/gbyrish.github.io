@@ -89,20 +89,20 @@ await loadEnv();
 // gated to real admins. Set HELPISH_DEV_ADMIN=0 in .env.local to force the gate.
 if(!('HELPISH_DEV_ADMIN' in process.env)) process.env.HELPISH_DEV_ADMIN = '1';
 // Imported after the env is loaded so the handler sees the key.
-const { default: helpish } = await import('../api/helpish.js');
+const { default: helpish, providerHealthCheck } = await import('../api/helpish.js');
 
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   try{
     if(url.pathname === '/api/helpish') return await helpish(req, res);
+    // The same report the deployed function serves at GET /api/helpish, so a
+    // local run and production answer the identical question: key present, model
+    // reachable, and the fix to apply when it is not. Booleans and codes only —
+    // the key itself is never echoed.
     if(url.pathname === '/api/helpish/health'){
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({
-        ok: true,
-        model: process.env.HELPISH_MODEL || 'minimax-m3',
-        keyConfigured: !!process.env.OLLAMA_API_KEY || !!process.env.GROQ_API_KEY,   // boolean only, never the key
-        mock: !!process.env.HELPISH_MOCK,
-      }));
+      const health = await providerHealthCheck();
+      res.writeHead(health.ok ? 200 : 503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(health, null, 2));
     }
     await serveStatic(req, res, url.pathname);
   }catch(err){
@@ -113,5 +113,6 @@ createServer(async (req, res) => {
 }).listen(PORT, () => {
   console.log(`Gbyrish dev server on http://localhost:${PORT}`);
   const brKey = process.env.BLOCKRUN_API_KEY;
-  console.log(`Helpish model: ${process.env.HELPISH_MODEL || 'minimax-m3'} | Ollama ${process.env.OLLAMA_API_KEY ? 'primary' : 'MISSING'} | Groq ${process.env.GROQ_API_KEY ? 'fallback' : 'off'}${process.env.HELPISH_MOCK ? ' | MOCK provider' : ''}`);
+  console.log(`Helpish model: ${process.env.HELPISH_MODEL || 'minimax-m3'} | OLLAMA_API_KEY ${process.env.OLLAMA_API_KEY ? 'set' : 'MISSING'}${process.env.HELPISH_MOCK ? ' | MOCK provider' : ''}`);
+  console.log(`Provider health: http://localhost:${PORT}/api/helpish/health`);
 });
