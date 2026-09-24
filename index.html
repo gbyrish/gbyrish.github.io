@@ -5657,12 +5657,16 @@ window.addEventListener('keydown', (e) => {
    host that runs functions (Vercel). Put that deployment's origin here, with no
    trailing path:
 
-     const HELPISH_API_ORIGIN = 'https://gbyrish.vercel.app';
+     const HELPISH_API_ORIGIN = 'https://gbyrish-github-io.vercel.app';
 
-   Leave it empty on any host that serves the API itself — localhost, or an
-   all-Vercel deploy — and the same-origin path is used. This is the only line
-   that changes when the backend moves; the API key still never touches this file. */
-const HELPISH_API_ORIGIN = location.hostname.endsWith('github.io') ? 'https://gbyrish-github-io.vercel.app' : '';
+   Local development and normal Vercel deployments leave it empty so they use their
+   own same-origin /api/helpish function. The static GitHub Pages host and the old
+   gbyrish.vercel.app alias use the explicit production API: the alias no longer
+   serves a function, so its former same-origin path produced a misleading network
+   error. The API key still never touches this file. */
+const HELPISH_API_ORIGIN = location.hostname.endsWith('github.io') || location.hostname === 'gbyrish.vercel.app'
+  ? 'https://gbyrish-github-io.vercel.app'
+  : '';
 const HELPISH_ENDPOINT = HELPISH_API_ORIGIN.replace(/\/+$/, '') + '/api/helpish';
 const HELPISH_STORE_KEY = 'gbyrish_helpish_chat';
 
@@ -6155,7 +6159,16 @@ const Helpish = {
         this.lastFailedSend = text;
         this.renderLog();
       }
-    }catch{
+    }catch(err){
+      // A CORS, routing, DNS, or dropped-stream failure must remain diagnosable;
+      // previously the catch discarded the actual exception and every cause showed
+      // the same customer bubble. The endpoint is public and the error contains no
+      // credentials or Firebase token, so logging it is safe.
+      console.error('Helpish request failed:', {
+        endpoint: HELPISH_ENDPOINT,
+        message: err?.message || String(err),
+        stack: err?.stack,
+      });
       // Network-level failure, or the helper is not deployed on this host. The
       // customer's conversation is untouched — only this reply is missing.
       this.setStatus('');

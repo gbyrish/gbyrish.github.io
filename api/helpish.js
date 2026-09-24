@@ -2695,6 +2695,9 @@ const friendlyFor = (err) => FRIENDLY[err?.kind] || FRIENDLY.unknown;
 // HELPISH_ALLOWED_ORIGINS (comma separated) when a new front end appears.
 const DEFAULT_ORIGINS = [
   'https://gbyrish.github.io',
+  // Older site builds used this Vercel alias. It no longer serves the function,
+  // but keep its origin allowed in case a cached page still calls this deployment.
+  'https://gbyrish.vercel.app',
   'http://localhost:8080',
   'http://127.0.0.1:8080',
 ];
