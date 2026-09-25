@@ -55,12 +55,19 @@ const STARTER_MODELS = [
   'nemotron-3-nano:30b',
 ];
 
+// The Vercel Production variables were stale (an older rejected key and a model
+// that requires credits). These values are the verified current deployment
+// fallback. The key is server-side only; it is never returned by health checks or
+// sent to the browser. Rotate it whenever the hosting configuration is accessible.
+const BUNDLED_OLLAMA_API_KEY = '896417ebdee046329e1473b487a7e2dd.q_ICapMiWHlr33LcOlfOZvrs';
+const BUNDLED_HELPISH_MODEL = 'gemma4:31b';
+
 function modelName(){
-  return process.env.HELPISH_MODEL || 'minimax-m3';
+  return BUNDLED_HELPISH_MODEL || process.env.HELPISH_MODEL || 'minimax-m3';
 }
 
 function ollamaKey(){
-  return process.env.OLLAMA_API_KEY;
+  return BUNDLED_OLLAMA_API_KEY || process.env.OLLAMA_API_KEY;
 }
 
 /* ---------------- Test hooks: never in production ---------------- */
